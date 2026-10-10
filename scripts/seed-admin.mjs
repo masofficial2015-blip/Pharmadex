@@ -19,8 +19,8 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || envVars.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || envVars.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = envVars.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = envVars.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('❌ Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
@@ -63,7 +63,8 @@ async function seedAdmin() {
     });
 
     if (createError) {
-      console.error(`❌ Failed to create auth user:`, createError.message);
+      console.error(`❌ Failed to create auth user:`, createError);
+      if (createError.cause) console.error(`Cause:`, createError.cause);
       process.exit(1);
     }
     userId = newUser.user.id;
