@@ -44,11 +44,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Badge variant="success" className="gap-1.5 py-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Schema Ready</span>
-          </Badge>
+        <div className="flex items-center gap-3">
+          <a
+            href="/login"
+            className="inline-flex items-center justify-center h-9 px-3.5 rounded-lg bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 transition-colors shadow-xs"
+          >
+            Staff Login
+          </a>
           <div className="text-xs text-slate-500 font-mono hidden md:block">
             Currency: <strong className="text-slate-700">ETB</strong>
           </div>
@@ -65,12 +67,21 @@ export default function HomePage() {
               Project Foundation Initialized
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Pharmacy Core & Database Schema
+              Pharmacy Core & Access Management
             </h1>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
               Clean, mobile-first architecture configured with Next.js 15, TypeScript, Tailwind CSS, and Supabase. 
-              The database schema is fully defined with strict integrity constraints, FEFO tracking, and single-shift enforcement.
+              Role-based access control protects owner and pharmacist operations with individual account authentication and audit trails.
             </p>
+            <div className="pt-2">
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-white text-teal-950 font-semibold text-xs hover:bg-teal-50 transition-colors shadow-sm"
+              >
+                Sign In to Pharmacist Portal
+                <ArrowRight className="w-3.5 h-3.5 text-teal-700" />
+              </a>
+            </div>
           </div>
         </div>
 

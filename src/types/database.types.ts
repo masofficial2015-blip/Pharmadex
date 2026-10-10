@@ -15,6 +15,14 @@ export type SaleStatus = 'COMPLETED' | 'CANCELLED' | 'RETURNED';
 export type CashMovementType = 'PAY_IN' | 'PAY_OUT';
 export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'CANCEL' | 'AUTHORIZE';
 
+export type Relationship = {
+  foreignKeyName: string;
+  columns: string[];
+  isOneToOne?: boolean;
+  referencedRelation: string;
+  referencedColumns: string[];
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -46,6 +54,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: Relationship[];
       };
       suppliers: {
         Row: {
@@ -81,6 +90,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: Relationship[];
       };
       medicines: {
         Row: {
@@ -119,6 +129,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: Relationship[];
       };
       batches: {
         Row: {
@@ -166,6 +177,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: Relationship[];
       };
       shifts: {
         Row: {
@@ -207,6 +219,7 @@ export interface Database {
           closing_notes?: string | null;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       stock_movements: {
         Row: {
@@ -251,6 +264,7 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       sales: {
         Row: {
@@ -289,6 +303,7 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       sale_items: {
         Row: {
@@ -327,6 +342,7 @@ export interface Database {
           subtotal?: number;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       returns: {
         Row: {
@@ -365,6 +381,7 @@ export interface Database {
           stock_restored?: boolean;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       cash_movements: {
         Row: {
@@ -394,6 +411,7 @@ export interface Database {
           performed_by?: string;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
       audit_logs: {
         Row: {
@@ -429,7 +447,20 @@ export interface Database {
           ip_address?: string | null;
           created_at?: string;
         };
+        Relationships: Relationship[];
       };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 }
