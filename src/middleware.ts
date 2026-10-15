@@ -45,52 +45,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is authenticated, verify their profile status and role
-  if (user) {
-    const { data: rawProfile } = await supabase
-      .from('profiles')
-      .select('role, is_active')
-      .eq('id', user.id)
-      .single();
-
-    const profile = rawProfile as unknown as { role: import('@/types').UserRole; is_active: boolean } | null;
-
-    // Check if account has been deactivated by the owner
-    if (profile && !profile.is_active) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      url.searchParams.set('error', 'account_disabled');
-      const response = NextResponse.redirect(url);
-      // Clear auth cookies
-      request.cookies.getAll().forEach((cookie) => {
-        if (cookie.name.includes('sb-')) {
-          response.cookies.delete(cookie.name);
-        }
-      });
-      return response;
-    }
-
-    // If authenticated user visits /login, redirect to dashboard
-    if (isLoginPage) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
-      return NextResponse.redirect(url);
-    }
-
-    // Role-based protection: only ADMIN can access /admin and owner-only inventory routes
-    const adminOnlyRoutes = [
-      '/admin',
-      '/inventory/receive',
-      '/inventory/suppliers',
-      '/inventory/movements',
-    ];
-    if (adminOnlyRoutes.some((route) => pathname.startsWith(route))) {
-      if (!profile || profile.role !== 'ADMIN') {
-        const url = request.nextUrl.clone();
-        url.pathname = '/unauthorized';
-        return NextResponse.redirect(url);
-      }
-    }
+  // If authenticated user visits /login, redirect to dashboard
+  if (user && isLoginPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
