@@ -25,11 +25,13 @@ export async function GET() {
         message = 'Supabase database connection established successfully.';
       } else {
         dbStatus = 'ERROR';
-        message = error.message;
+        console.error('Health check database query error:', error.message);
+        message = 'Database service unavailable or connection failed.';
       }
     } catch (err: unknown) {
       dbStatus = 'ERROR';
-      message = err instanceof Error ? err.message : 'Unknown database error';
+      console.error('Health check exception:', err);
+      message = 'Database service unavailable or connection failed.';
     }
   }
 

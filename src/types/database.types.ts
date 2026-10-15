@@ -11,6 +11,7 @@ export type ShiftStatus = 'OPEN' | 'CLOSED';
 export type MovementType = 'RECEIVE' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'DISPOSAL';
 export type ReferenceType = 'RECEIPT' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'DISPOSAL';
 export type PaymentMethod = 'CASH' | 'TELEBIRR' | 'CBE_BIRR' | 'BANK_TRANSFER';
+export type PaymentTerm = 'FULL' | 'PARTIAL' | 'DUBE';
 export type SaleStatus = 'COMPLETED' | 'CANCELLED' | 'RETURNED';
 export type CashMovementType = 'PAY_IN' | 'PAY_OUT';
 export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'CANCEL' | 'AUTHORIZE';
@@ -96,9 +97,11 @@ export interface Database {
         Row: {
           id: string;
           name: string;
+          brand_name: string | null;
           strength: string;
           dosage_form: string;
           base_unit: string;
+          pack_label: string;
           units_per_pack: number;
           low_stock_threshold: number;
           is_active: boolean;
@@ -108,9 +111,11 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
+          brand_name?: string | null;
           strength: string;
           dosage_form: string;
           base_unit: string;
+          pack_label?: string;
           units_per_pack: number;
           low_stock_threshold?: number;
           is_active?: boolean;
@@ -120,9 +125,11 @@ export interface Database {
         Update: {
           id?: string;
           name?: string;
+          brand_name?: string | null;
           strength?: string;
           dosage_form?: string;
           base_unit?: string;
+          pack_label?: string;
           units_per_pack?: number;
           low_stock_threshold?: number;
           is_active?: boolean;
@@ -131,16 +138,62 @@ export interface Database {
         };
         Relationships: Relationship[];
       };
+      stock_receipts: {
+        Row: {
+          id: string;
+          receipt_number: string;
+          supplier_id: string;
+          invoice_number: string | null;
+          total_cost: number;
+          amount_paid: number;
+          payment_status: PaymentTerm;
+          payment_method: PaymentMethod | null;
+          received_by: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          receipt_number: string;
+          supplier_id: string;
+          invoice_number?: string | null;
+          total_cost: number;
+          amount_paid: number;
+          payment_status: PaymentTerm;
+          payment_method?: PaymentMethod | null;
+          received_by: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          receipt_number?: string;
+          supplier_id?: string;
+          invoice_number?: string | null;
+          total_cost?: number;
+          amount_paid?: number;
+          payment_status?: PaymentTerm;
+          payment_method?: PaymentMethod | null;
+          received_by?: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: Relationship[];
+      };
       batches: {
         Row: {
           id: string;
           medicine_id: string;
           supplier_id: string | null;
+          receipt_id: string | null;
           batch_number: string;
           expiry_date: string;
           cost_per_pack: number;
+          cost_per_unit: number | null;
           selling_price_per_pack: number;
           selling_price_per_unit: number;
+          packs_received: number | null;
+          loose_units_received: number | null;
           initial_quantity_units: number;
           current_quantity_units: number;
           received_by: string;
@@ -151,11 +204,15 @@ export interface Database {
           id?: string;
           medicine_id: string;
           supplier_id?: string | null;
+          receipt_id?: string | null;
           batch_number: string;
           expiry_date: string;
           cost_per_pack: number;
+          cost_per_unit?: number | null;
           selling_price_per_pack: number;
           selling_price_per_unit: number;
+          packs_received?: number | null;
+          loose_units_received?: number | null;
           initial_quantity_units: number;
           current_quantity_units: number;
           received_by: string;
@@ -166,11 +223,15 @@ export interface Database {
           id?: string;
           medicine_id?: string;
           supplier_id?: string | null;
+          receipt_id?: string | null;
           batch_number?: string;
           expiry_date?: string;
           cost_per_pack?: number;
+          cost_per_unit?: number | null;
           selling_price_per_pack?: number;
           selling_price_per_unit?: number;
+          packs_received?: number | null;
+          loose_units_received?: number | null;
           initial_quantity_units?: number;
           current_quantity_units?: number;
           received_by?: string;

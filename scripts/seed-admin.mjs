@@ -28,9 +28,16 @@ if (!supabaseUrl || !serviceRoleKey) {
   process.exit(1);
 }
 
-const email = process.argv[2] || 'owner@pharmadex.et';
-const password = process.argv[3] || 'Owner@Pharmadex2026!';
-const fullName = process.argv[4] || 'Pharmacy Owner (Admin)';
+const isProduction = process.env.NODE_ENV === 'production';
+const email = process.argv[2] || process.env.SEED_ADMIN_EMAIL || (isProduction ? null : 'owner@pharmadex.et');
+const password = process.argv[3] || process.env.SEED_ADMIN_PASSWORD || (isProduction ? null : 'Owner@Pharmadex2026!');
+const fullName = process.argv[4] || process.env.SEED_ADMIN_NAME || 'Pharmacy Owner (Admin)';
+
+if (!email || !password) {
+  console.error('❌ Security Error: In production, explicit admin credentials must be provided via CLI arguments or SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD environment variables.');
+  console.error('Usage: node scripts/seed-admin.mjs <email> <password> "<fullName>"');
+  process.exit(1);
+}
 
 async function seedAdmin() {
   console.log(`🚀 Bootstrapping Owner Account for Pharmadex...`);

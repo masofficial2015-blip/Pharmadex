@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -11,9 +12,10 @@ export interface AuthContext {
 
 /**
  * Retrieve the current authenticated user and their active profile.
+ * Memoized per server render request via React cache() to prevent redundant DB calls.
  * Returns null if not authenticated or profile is missing.
  */
-export async function getCurrentUser(): Promise<AuthContext | null> {
+export const getCurrentUser = cache(async (): Promise<AuthContext | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,7 +43,7 @@ export async function getCurrentUser(): Promise<AuthContext | null> {
     email: user.email || '',
     profile,
   };
-}
+});
 
 /**
  * Asserts that a user is authenticated and their account is active.

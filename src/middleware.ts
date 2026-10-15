@@ -77,8 +77,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Role-based protection: only ADMIN can access /admin routes
-    if (pathname.startsWith('/admin')) {
+    // Role-based protection: only ADMIN can access /admin and owner-only inventory routes
+    const adminOnlyRoutes = [
+      '/admin',
+      '/inventory/receive',
+      '/inventory/suppliers',
+      '/inventory/movements',
+    ];
+    if (adminOnlyRoutes.some((route) => pathname.startsWith(route))) {
       if (!profile || profile.role !== 'ADMIN') {
         const url = request.nextUrl.clone();
         url.pathname = '/unauthorized';
