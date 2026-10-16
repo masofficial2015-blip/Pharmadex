@@ -201,7 +201,7 @@ export async function openShiftAction(
 
   return {
     success: true,
-    message: `Shift opened successfully with ${opening_cash.toLocaleString()} ETB opening cash.`,
+    message: 'Shift opened successfully. Duty active.',
     data: newShift,
   };
 }

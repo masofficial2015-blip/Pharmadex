@@ -76,58 +76,61 @@ export function CloseShiftModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Close Shift & Till Reconciliation</h2>
-            <p className="text-xs text-slate-500">Calculate physical expected cash and verify discrepancy</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {generalError && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-800 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-              <div>{generalError}</div>
-            </div>
-          )}
-
-          {/* Immutable notice */}
-          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs">
-            <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+      <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
+        <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
             <div>
-              <span className="font-semibold">Permanent Audit Record:</span> Once closed, a shift cannot be edited or reopened. Subsequent corrections require an authorized administrative audit adjustment.
+              <h2 className="text-base font-semibold text-slate-900">Close Shift & Till Reconciliation</h2>
+              <p className="text-xs text-slate-500">Calculate physical expected cash and verify discrepancy</p>
             </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Expected Cash Reconciliation Breakdown */}
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5 text-xs">
-            <div className="flex items-center justify-between font-semibold text-slate-800 border-b border-slate-200 pb-2">
-              <span className="flex items-center gap-1.5">
-                <Calculator className="w-4 h-4 text-teal-700" />
-                Physical Cash Breakdown
-              </span>
-              <span>Amount (ETB)</span>
+          {/* Body */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            {generalError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-800 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                <div>{generalError}</div>
+              </div>
+            )}
+
+            {/* Immutable notice */}
+            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs">
+              <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Permanent Audit Record:</span> Once closed, a shift cannot be edited or reopened. Subsequent corrections require an authorized administrative audit adjustment.
+              </div>
             </div>
 
-            <div className="flex justify-between text-slate-600">
-              <span>Opening Cash Float (+)</span>
-              <span className="font-mono">{openingCash.toLocaleString()} ETB</span>
-            </div>
+            {/* Expected Cash Reconciliation Breakdown */}
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between font-semibold text-slate-800 border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5">
+                  <Calculator className="w-4 h-4 text-teal-700" />
+                  Physical Cash Breakdown
+                </span>
+                <span>Amount (ETB)</span>
+              </div>
 
-            <div className="flex justify-between text-emerald-800 font-medium">
-              <span>Physical Cash Sales (+)</span>
-              <span className="font-mono">+{cashSales.toLocaleString()} ETB</span>
-            </div>
+              {openingCash > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Opening Cash Float (+)</span>
+                  <span className="font-mono">{openingCash.toLocaleString()} ETB</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-emerald-800 font-medium">
+                <span>Physical Cash Sales (+)</span>
+                <span className="font-mono">+{cashSales.toLocaleString()} ETB</span>
+              </div>
 
             {cashRefunds > 0 && (
               <div className="flex justify-between text-rose-700 font-medium">
@@ -260,6 +263,7 @@ export function CloseShiftModal({
             </Button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

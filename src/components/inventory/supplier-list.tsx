@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
+import Link from 'next/link';
 import {
   Search,
   Plus,
@@ -13,6 +14,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Receipt,
+  PackagePlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,10 +118,18 @@ export function SupplierList({ initialSuppliers, isAdmin }: SupplierListProps) {
         </div>
 
         {isAdmin && (
-          <Button onClick={handleOpenCreate} variant="primary" className="gap-2 shrink-0">
-            <Plus className="w-4 h-4" />
-            Add Supplier
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/inventory/receive">
+              <Button variant="outline" className="gap-1.5 text-xs font-semibold text-teal-800 border-teal-200 hover:bg-teal-50">
+                <PackagePlus className="w-4 h-4" />
+                Receive Stock
+              </Button>
+            </Link>
+            <Button onClick={handleOpenCreate} variant="primary" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Supplier
+            </Button>
+          </div>
         )}
       </div>
 

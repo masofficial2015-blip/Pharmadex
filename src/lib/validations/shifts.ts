@@ -3,7 +3,8 @@ import { z } from 'zod';
 export const openShiftSchema = z.object({
   opening_cash: z.coerce
     .number({ invalid_type_error: 'Opening cash must be a valid number' })
-    .min(0, 'Opening cash cannot be negative'),
+    .min(0, 'Opening cash cannot be negative')
+    .default(0),
 });
 
 export type OpenShiftFormValues = z.infer<typeof openShiftSchema>;

@@ -26,8 +26,9 @@ export function PosReceiptModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+      <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
+        <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Top Success Badge */}
         <div className="p-6 bg-emerald-50/80 border-b border-emerald-100 text-center space-y-1.5">
           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
@@ -138,6 +139,7 @@ export function PosReceiptModal({
             New Sale
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

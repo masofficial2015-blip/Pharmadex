@@ -105,61 +105,23 @@ export function PosCheckoutModal({
             <label className="block text-xs font-bold text-slate-900 mb-2">
               Choose Payment Method <span className="text-rose-500">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-3">
               {/* CASH */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod('CASH')}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
                   paymentMethod === 'CASH'
                     ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-2 ring-emerald-600/20'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                  <Banknote className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Banknote className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="font-bold text-xs">Cash Till</div>
-                  <div className="text-[10px] text-slate-500">Drawer coins/notes</div>
-                </div>
-              </button>
-
-              {/* TELEBIRR */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('TELEBIRR')}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                  paymentMethod === 'TELEBIRR'
-                    ? 'border-blue-600 bg-blue-50/70 text-blue-950 ring-2 ring-blue-600/20'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
-                  <Smartphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs">Telebirr</div>
-                  <div className="text-[10px] text-slate-500">Mobile Wallet</div>
-                </div>
-              </button>
-
-              {/* CBE BIRR */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('CBE_BIRR')}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                  paymentMethod === 'CBE_BIRR'
-                    ? 'border-purple-600 bg-purple-50/70 text-purple-950 ring-2 ring-purple-600/20'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center shrink-0">
-                  <Building className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs">CBE Birr</div>
-                  <div className="text-[10px] text-slate-500">Commercial Bank</div>
+                  <div className="text-[10px] text-slate-500">Drawer coins & notes</div>
                 </div>
               </button>
 
@@ -167,18 +129,18 @@ export function PosCheckoutModal({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('BANK_TRANSFER')}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
                   paymentMethod === 'BANK_TRANSFER'
                     ? 'border-teal-600 bg-teal-50/70 text-teal-950 ring-2 ring-teal-600/20'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
-                  <CreditCard className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="font-bold text-xs">Bank Transfer</div>
-                  <div className="text-[10px] text-slate-500">Direct Deposit</div>
+                  <div className="text-[10px] text-slate-500">Electronic deposit</div>
                 </div>
               </button>
             </div>

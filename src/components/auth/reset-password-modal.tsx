@@ -49,8 +49,9 @@ export function ResetPasswordModal({ staff, isOpen, onClose }: ResetPasswordModa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn">
+      <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
+        <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2 text-teal-800">
@@ -116,6 +117,7 @@ export function ResetPasswordModal({ staff, isOpen, onClose }: ResetPasswordModa
             </Button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

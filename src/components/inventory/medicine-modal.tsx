@@ -23,9 +23,9 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
     brand_name: '',
     strength: '',
     dosage_form: 'Tablet',
-    base_unit: 'tablet',
+    base_unit: 'strip',
     pack_label: 'Box',
-    units_per_pack: 100,
+    units_per_pack: 10,
     low_stock_threshold: 10,
   });
 
@@ -51,9 +51,9 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
         brand_name: '',
         strength: '',
         dosage_form: 'Tablet',
-        base_unit: 'tablet',
+        base_unit: 'strip',
         pack_label: 'Box',
-        units_per_pack: 100,
+        units_per_pack: 10,
         low_stock_threshold: 10,
       });
     }
@@ -97,9 +97,15 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
     }
   }
 
+  const unitText = formData.base_unit.trim() || 'strip';
+  const pluralUnit = unitText.endsWith('s') ? unitText : `${unitText}s`;
+  const capitalizedPlural = pluralUnit.charAt(0).toUpperCase() + pluralUnit.slice(1);
+  const dynamicUnitsPerPackLabel = `${capitalizedPlural} per ${formData.pack_label || 'Pack'}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+      <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
+        <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div>
@@ -260,7 +266,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-slate-700">
-                  Units Per {formData.pack_label || 'Pack'} <span className="text-rose-500">*</span>
+                  {dynamicUnitsPerPackLabel} <span className="text-rose-500">*</span>
                 </label>
                 {isConversionLocked && (
                   <span className="text-[11px] font-medium text-amber-700 flex items-center gap-1">
@@ -271,7 +277,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
               <Input
                 type="number"
                 min="1"
-                placeholder="e.g. 100"
+                placeholder={`e.g. 10`}
                 value={formData.units_per_pack}
                 onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || 1 })}
                 error={fieldErrors.units_per_pack}
@@ -283,7 +289,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
             {/* Low-stock threshold */}
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Low Stock Threshold ({formData.base_unit}s)
+                Low Stock Threshold ({pluralUnit})
               </label>
               <Input
                 type="number"
@@ -294,7 +300,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                   setFormData({ ...formData, low_stock_threshold: parseInt(e.target.value) || 0 })
                 }
                 error={fieldErrors.low_stock_threshold}
-                helperText={`Alert triggered when available ${formData.base_unit}s fall below this number.`}
+                helperText={`Alert triggered when available ${pluralUnit.toLowerCase()} fall below this number.`}
                 required
               />
             </div>
@@ -305,10 +311,10 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
             <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
             <div>
               <strong>Conversion Rule:</strong> 1 {formData.pack_label} ={' '}
-              <span className="font-semibold">{formData.units_per_pack} {formData.base_unit}s</span>.
-              Purchasing 3 {formData.pack_label}s + 12 loose {formData.base_unit}s ={' '}
+              <span className="font-semibold">{formData.units_per_pack} {pluralUnit}</span>.
+              Purchasing 3 {formData.pack_label}s + 12 loose {pluralUnit} ={' '}
               <span className="font-semibold">
-                {3 * (formData.units_per_pack || 1) + 12} {formData.base_unit}s
+                {3 * (formData.units_per_pack || 1) + 12} {pluralUnit}
               </span>.
             </div>
           </div>
@@ -323,6 +329,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
             </Button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

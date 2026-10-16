@@ -42,8 +42,9 @@ export function CashMovementModal({ isOpen, onClose, onSuccess }: CashMovementMo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+      <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
+        <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div>
@@ -146,6 +147,7 @@ export function CashMovementModal({ isOpen, onClose, onSuccess }: CashMovementMo
             </Button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );
