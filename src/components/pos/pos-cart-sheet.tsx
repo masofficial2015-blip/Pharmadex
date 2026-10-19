@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Trash2, Edit2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatStockBreakdown } from '@/lib/utils/packaging';
 import type { CartItem } from '@/types';
 
 interface PosCartSheetProps {
@@ -78,8 +79,7 @@ export function PosCartSheet({
                   {/* Quantity Breakdown */}
                   <div className="mt-2 text-slate-700 flex items-center gap-2">
                     <span className="font-semibold text-teal-800">
-                      {item.pack_quantity > 0 ? `${item.pack_quantity} ${item.medicine.pack_label}s ` : ''}
-                      {item.loose_quantity > 0 ? `+ ${item.loose_quantity} loose ` : ''}
+                      {formatStockBreakdown(item.total_units, item.medicine)}
                     </span>
                     <span className="text-[11px] text-slate-400">
                       ({item.total_units} {item.medicine.base_unit}s)

@@ -149,8 +149,11 @@ export async function createMedicineAction(
     strength: formData.get('strength'),
     dosage_form: formData.get('dosage_form'),
     base_unit: formData.get('base_unit'),
-    pack_label: formData.get('pack_label') || 'Pack',
+    pack_label: formData.get('pack_label') || 'Box',
     units_per_pack: formData.get('units_per_pack'),
+    packaging_type: formData.get('packaging_type') || 'STANDARD',
+    strips_per_box: formData.get('strips_per_box') || null,
+    tablets_per_strip: formData.get('tablets_per_strip') || null,
     low_stock_threshold: formData.get('low_stock_threshold') || '10',
   };
 
@@ -196,6 +199,9 @@ export async function createMedicineAction(
     dosage_form: data.dosage_form,
     base_unit: data.base_unit.toLowerCase(),
     units_per_pack: data.units_per_pack,
+    packaging_type: data.packaging_type || 'STANDARD',
+    strips_per_box: data.strips_per_box || null,
+    tablets_per_strip: data.tablets_per_strip || null,
     low_stock_threshold: data.low_stock_threshold,
     is_active: true,
   };
@@ -264,8 +270,11 @@ export async function updateMedicineAction(
     strength: formData.get('strength'),
     dosage_form: formData.get('dosage_form'),
     base_unit: formData.get('base_unit'),
-    pack_label: formData.get('pack_label') || 'Pack',
+    pack_label: formData.get('pack_label') || 'Box',
     units_per_pack: formData.get('units_per_pack'),
+    packaging_type: formData.get('packaging_type') || 'STANDARD',
+    strips_per_box: formData.get('strips_per_box') || null,
+    tablets_per_strip: formData.get('tablets_per_strip') || null,
     low_stock_threshold: formData.get('low_stock_threshold') || '10',
   };
 
@@ -325,6 +334,9 @@ export async function updateMedicineAction(
     dosage_form: data.dosage_form,
     base_unit: isLocked ? existing.base_unit : data.base_unit.toLowerCase(),
     units_per_pack: isLocked ? existing.units_per_pack : data.units_per_pack,
+    packaging_type: isLocked ? (existing.packaging_type || 'STANDARD') : (data.packaging_type || 'STANDARD'),
+    strips_per_box: isLocked ? existing.strips_per_box : (data.strips_per_box || null),
+    tablets_per_strip: isLocked ? existing.tablets_per_strip : (data.tablets_per_strip || null),
     pack_label: data.pack_label,
     low_stock_threshold: data.low_stock_threshold,
     brand_name: data.brand_name || null,

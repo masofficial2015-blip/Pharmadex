@@ -69,6 +69,9 @@ export interface PosMedicineItem {
   base_unit: string;
   pack_label: string;
   units_per_pack: number;
+  packaging_type?: string | null;
+  strips_per_box?: number | null;
+  tablets_per_strip?: number | null;
   total_available_units: number;
   available_packs: number;
   available_loose: number;

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { formatStockBreakdown } from '@/lib/utils/packaging';
 import type { BatchWithDetails } from '@/types';
 
 interface BatchTableProps {
@@ -279,12 +280,10 @@ export function BatchTable({ batches }: BatchTableProps) {
                       {/* Current Stock */}
                       <td className="py-4 px-4">
                         <div className="font-bold text-slate-900 text-sm">
-                          {b.current_quantity_units.toLocaleString()}{' '}
-                          <span className="text-xs font-normal text-slate-500">{baseUnit}s</span>
+                          {formatStockBreakdown(b.current_quantity_units, b.medicine)}
                         </div>
-                        <div className="text-xs text-slate-500">
-                          {availablePacks} {packLabel}s
-                          {looseUnits > 0 ? ` + ${looseUnits} ${baseUnit}s` : ''}
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          ({b.current_quantity_units.toLocaleString()} {baseUnit}{b.current_quantity_units !== 1 ? 's' : ''})
                         </div>
                       </td>
 

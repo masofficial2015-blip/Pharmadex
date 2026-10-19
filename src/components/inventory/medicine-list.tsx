@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MedicineModal } from './medicine-modal';
 import { toggleMedicineStatusAction } from '@/app/actions/medicines';
+import { formatStockBreakdown, formatPackagingFormula } from '@/lib/utils/packaging';
 import type { MedicineInventorySummary } from '@/types';
 
 interface MedicineListProps {
@@ -235,11 +236,9 @@ export function MedicineList({ initialMedicines, isAdmin }: MedicineListProps) {
 
                       {/* Packaging Conversion */}
                       <td className="py-4 px-4">
-                        <div className="text-xs text-slate-800 font-medium flex items-center gap-1.5">
-                          <span>1 {med.pack_label || 'Pack'}</span>
-                          <span className="text-slate-400">=</span>
+                        <div className="text-xs text-slate-800 font-medium">
                           <span className="font-semibold text-teal-800">
-                            {med.units_per_pack} {med.base_unit}s
+                            {formatPackagingFormula(med)}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
@@ -257,12 +256,11 @@ export function MedicineList({ initialMedicines, isAdmin }: MedicineListProps) {
                       {/* Stock Level */}
                       <td className="py-4 px-4 text-center">
                         <div className="inline-flex flex-col items-center">
-                          <span className="font-bold text-base text-slate-900">
-                            {med.total_units_in_stock.toLocaleString()}{' '}
-                            <span className="text-xs font-normal text-slate-500">{med.base_unit}s</span>
+                          <span className="font-bold text-sm sm:text-base text-slate-900">
+                            {formatStockBreakdown(med.total_units_in_stock, med)}
                           </span>
-                          <span className="text-xs text-slate-500">
-                            ({med.total_packs_in_stock} {med.pack_label || 'pack'}s)
+                          <span className="text-xs text-slate-400 mt-0.5">
+                            ({med.total_units_in_stock.toLocaleString()} {med.base_unit}{med.total_units_in_stock !== 1 ? 's' : ''})
                           </span>
                           {med.is_low_stock && med.is_active && (
                             <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-full">

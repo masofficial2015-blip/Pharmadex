@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Pill, Package, Sparkles, Check, Plus } from 'lucide-react';
+import { formatStockBreakdown } from '@/lib/utils/packaging';
 import type { PosMedicineItem } from '@/types';
 
 interface PosMedicineCardProps {
@@ -75,13 +76,12 @@ export function PosMedicineCard({ medicine, quantityInCart = 0, onSelect }: PosM
               Out of Stock
             </span>
           ) : (
-            <span className="text-[11px] font-medium text-slate-600">
-              Stock:{' '}
-              <strong className="text-slate-800">
-                {medicine.available_packs > 0 ? `${medicine.available_packs}p ` : ''}
-                {medicine.available_loose > 0 ? `${medicine.available_loose}u` : ''}
-              </strong>
-            </span>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 block">Available:</span>
+              <span className="text-[11px] font-semibold text-slate-800">
+                {formatStockBreakdown(medicine.total_available_units, medicine)}
+              </span>
+            </div>
           )}
         </div>
       </div>

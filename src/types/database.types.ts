@@ -103,6 +103,9 @@ export interface Database {
           base_unit: string;
           pack_label: string;
           units_per_pack: number;
+          packaging_type: string | null;
+          strips_per_box: number | null;
+          tablets_per_strip: number | null;
           low_stock_threshold: number;
           is_active: boolean;
           created_at: string;
@@ -117,6 +120,9 @@ export interface Database {
           base_unit: string;
           pack_label?: string;
           units_per_pack: number;
+          packaging_type?: string | null;
+          strips_per_box?: number | null;
+          tablets_per_strip?: number | null;
           low_stock_threshold?: number;
           is_active?: boolean;
           created_at?: string;
@@ -131,6 +137,9 @@ export interface Database {
           base_unit?: string;
           pack_label?: string;
           units_per_pack?: number;
+          packaging_type?: string | null;
+          strips_per_box?: number | null;
+          tablets_per_strip?: number | null;
           low_stock_threshold?: number;
           is_active?: boolean;
           created_at?: string;

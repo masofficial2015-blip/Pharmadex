@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { receiveStockAction, type InventoryActionResponse } from '@/app/actions/inventory';
+import { formatStockBreakdown, formatPackagingFormula } from '@/lib/utils/packaging';
 import type { MedicineInventorySummary, SupplierWithBalance } from '@/types';
 
 interface StockReceiveFormProps {
@@ -218,13 +219,13 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
               <span>
                 Packaging Ratio:{' '}
                 <strong className="text-teal-800">
-                  1 {packLabel} = {unitsPerPack} {baseUnit}s
+                  {formatPackagingFormula(currentMedicine)}
                 </strong>
               </span>
               <span>
                 Current Stock:{' '}
                 <strong className="text-slate-800">
-                  {currentMedicine.total_units_in_stock} {baseUnit}s
+                  {formatStockBreakdown(currentMedicine.total_units_in_stock, currentMedicine)}
                 </strong>
               </span>
             </div>
@@ -306,12 +307,17 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-teal-800">
-                Packaging Conversion Formula
+                Packaging Conversion Breakdown
               </p>
               <p className="text-sm font-bold mt-0.5 text-teal-950">
                 {packs} {packLabel}(s) &times; {unitsPerPack} + {looseUnits} Loose ={' '}
                 <span className="text-teal-700 text-base">{totalBaseUnits} Total {baseUnit}s</span>
               </p>
+              {currentMedicine && totalBaseUnits > 0 && (
+                <p className="text-xs text-teal-800 mt-1">
+                  Breakdown: <strong>{formatStockBreakdown(totalBaseUnits, currentMedicine)}</strong>
+                </p>
+              )}
             </div>
           </div>
           <div className="text-left sm:text-right">

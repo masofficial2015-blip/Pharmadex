@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Lock, AlertCircle, Info, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Lock, AlertCircle, Sparkles, Check, Layers, Package, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createMedicineAction, updateMedicineAction, type MedicineActionResponse } from '@/app/actions/medicines';
+import { getDosageCategory, type DosageFormCategory } from '@/lib/utils/packaging';
 import type { MedicineInventorySummary } from '@/types';
 
 interface MedicineModalProps {
@@ -18,48 +19,221 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
   const isEditing = Boolean(medicineToEdit);
   const isConversionLocked = isEditing && Boolean(medicineToEdit?.has_stock_transactions);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    brand_name: '',
-    strength: '',
-    dosage_form: 'Tablet',
-    base_unit: 'strip',
-    pack_label: 'Box',
-    units_per_pack: 10,
-    low_stock_threshold: 10,
-  });
+  // Basic Details
+  const [name, setName] = useState('');
+  const [brandName, setBrandName] = useState('');
+  const [strength, setStrength] = useState('');
+  const [dosageForm, setDosageForm] = useState('Tablet');
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
+
+  // Dynamic Packaging States
+  const [packagingType, setPackagingType] = useState<'BLISTER_BOX' | 'TIN_BOTTLE' | 'STANDARD'>('BLISTER_BOX');
+  const [stripsPerBox, setStripsPerBox] = useState<number>(10);
+  const [tabletsPerStrip, setTabletsPerStrip] = useState<string>('10'); // string to allow empty optional
+  const [tabletsPerTin, setTabletsPerTin] = useState<number>(1000);
+  const [unitsPerBox, setUnitsPerBox] = useState<number>(10);
+  const [injectionUnitType, setInjectionUnitType] = useState<'ampoule' | 'vial'>('ampoule');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Derive dosage category
+  const dosageCategory = useMemo<DosageFormCategory>(() => {
+    return getDosageCategory(dosageForm);
+  }, [dosageForm]);
+
+  // Derive Base Unit, Pack Label, and total units_per_pack
+  const { baseUnit, packLabel, unitsPerPack, packagingDescription } = useMemo(() => {
+    if (dosageCategory === 'tab_cap') {
+      const defaultDrugUnit = dosageForm.toLowerCase() === 'capsule' ? 'capsule' : 'tablet';
+      if (packagingType === 'BLISTER_BOX') {
+        const hasTabsPerStrip = tabletsPerStrip.trim() !== '' && parseInt(tabletsPerStrip) > 0;
+        const currentStrips = Math.max(1, stripsPerBox || 1);
+        const currentTabsPerStrip = hasTabsPerStrip ? parseInt(tabletsPerStrip) : null;
+
+        if (hasTabsPerStrip && currentTabsPerStrip) {
+          const total = currentStrips * currentTabsPerStrip;
+          return {
+            baseUnit: defaultDrugUnit,
+            packLabel: 'Box',
+            unitsPerPack: total,
+            packagingDescription: `1 Box = ${currentStrips} Strips × ${currentTabsPerStrip} ${defaultDrugUnit}s (${total} ${defaultDrugUnit}s total)`,
+          };
+        } else {
+          return {
+            baseUnit: 'strip',
+            packLabel: 'Box',
+            unitsPerPack: currentStrips,
+            packagingDescription: `1 Box = ${currentStrips} Strips (Tracked by strip)`,
+          };
+        }
+      } else {
+        // Tin / Bulk Bottle
+        const total = Math.max(1, tabletsPerTin || 1);
+        return {
+          baseUnit: defaultDrugUnit,
+          packLabel: 'Tin',
+          unitsPerPack: total,
+          packagingDescription: `1 Tin = ${total} ${defaultDrugUnit}s`,
+        };
+      }
+    }
+
+    if (dosageCategory === 'syrup_suspension_drops') {
+      return {
+        baseUnit: 'bottle',
+        packLabel: 'Box',
+        unitsPerPack: 1,
+        packagingDescription: '1 Bottle per Box',
+      };
+    }
+
+    if (dosageCategory === 'inhaler') {
+      return {
+        baseUnit: 'inhaler',
+        packLabel: 'Box',
+        unitsPerPack: 1,
+        packagingDescription: '1 Inhaler per Box',
+      };
+    }
+
+    if (dosageCategory === 'injection') {
+      const qty = Math.max(1, unitsPerBox || 1);
+      return {
+        baseUnit: injectionUnitType,
+        packLabel: 'Box',
+        unitsPerPack: qty,
+        packagingDescription: `1 Box = ${qty} ${injectionUnitType}s`,
+      };
+    }
+
+    if (dosageCategory === 'cream_ointment') {
+      const qty = Math.max(1, unitsPerBox || 1);
+      return {
+        baseUnit: 'tube',
+        packLabel: 'Box',
+        unitsPerPack: qty,
+        packagingDescription: `1 Box = ${qty} ${qty === 1 ? 'Tube' : 'Tubes'}`,
+      };
+    }
+
+    if (dosageCategory === 'sachet_powder') {
+      const qty = Math.max(1, unitsPerBox || 1);
+      return {
+        baseUnit: 'sachet',
+        packLabel: 'Box',
+        unitsPerPack: qty,
+        packagingDescription: `1 Box = ${qty} Sachets`,
+      };
+    }
+
+    if (dosageCategory === 'suppository') {
+      const qty = Math.max(1, unitsPerBox || 1);
+      return {
+        baseUnit: 'suppository',
+        packLabel: 'Box',
+        unitsPerPack: qty,
+        packagingDescription: `1 Box = ${qty} Suppositories`,
+      };
+    }
+
+    if (dosageCategory === 'medical_supplies') {
+      const qty = Math.max(1, unitsPerBox || 1);
+      return {
+        baseUnit: 'piece',
+        packLabel: 'Box',
+        unitsPerPack: qty,
+        packagingDescription: `1 Box = ${qty} Pieces`,
+      };
+    }
+
+    return {
+      baseUnit: 'unit',
+      packLabel: 'Box',
+      unitsPerPack: 1,
+      packagingDescription: '1 Unit per Box',
+    };
+  }, [
+    dosageCategory,
+    dosageForm,
+    packagingType,
+    stripsPerBox,
+    tabletsPerStrip,
+    tabletsPerTin,
+    unitsPerBox,
+    injectionUnitType,
+  ]);
+
   useEffect(() => {
     if (medicineToEdit) {
-      setFormData({
-        name: medicineToEdit.name,
-        brand_name: medicineToEdit.brand_name || '',
-        strength: medicineToEdit.strength,
-        dosage_form: medicineToEdit.dosage_form,
-        base_unit: medicineToEdit.base_unit,
-        pack_label: medicineToEdit.pack_label || 'Box',
-        units_per_pack: medicineToEdit.units_per_pack,
-        low_stock_threshold: medicineToEdit.low_stock_threshold,
-      });
+      setName(medicineToEdit.name);
+      setBrandName(medicineToEdit.brand_name || '');
+      setStrength(medicineToEdit.strength);
+      setDosageForm(medicineToEdit.dosage_form);
+      setLowStockThreshold(medicineToEdit.low_stock_threshold || 10);
+
+      const pType = (medicineToEdit.packaging_type as 'BLISTER_BOX' | 'TIN_BOTTLE' | 'STANDARD') || 'BLISTER_BOX';
+      setPackagingType(pType);
+      if (medicineToEdit.strips_per_box) {
+        setStripsPerBox(medicineToEdit.strips_per_box);
+      }
+      if (medicineToEdit.tablets_per_strip) {
+        setTabletsPerStrip(medicineToEdit.tablets_per_strip.toString());
+      } else {
+        setTabletsPerStrip('');
+      }
+      if (pType === 'TIN_BOTTLE') {
+        setTabletsPerTin(medicineToEdit.units_per_pack || 1000);
+      } else {
+        setUnitsPerBox(medicineToEdit.units_per_pack || 10);
+      }
+      if (medicineToEdit.base_unit === 'vial') {
+        setInjectionUnitType('vial');
+      } else {
+        setInjectionUnitType('ampoule');
+      }
     } else {
-      setFormData({
-        name: '',
-        brand_name: '',
-        strength: '',
-        dosage_form: 'Tablet',
-        base_unit: 'strip',
-        pack_label: 'Box',
-        units_per_pack: 10,
-        low_stock_threshold: 10,
-      });
+      // Default reset
+      setName('');
+      setBrandName('');
+      setStrength('');
+      setDosageForm('Tablet');
+      setLowStockThreshold(10);
+      setPackagingType('BLISTER_BOX');
+      setStripsPerBox(10);
+      setTabletsPerStrip('10');
+      setTabletsPerTin(1000);
+      setUnitsPerBox(10);
+      setInjectionUnitType('ampoule');
     }
     setFieldErrors({});
     setGeneralError(null);
   }, [medicineToEdit, isOpen]);
+
+  // Adjust defaults when dosage form switches
+  function handleDosageFormChange(newForm: string) {
+    setDosageForm(newForm);
+    const cat = getDosageCategory(newForm);
+
+    if (cat === 'tab_cap') {
+      setPackagingType('BLISTER_BOX');
+      setStripsPerBox(10);
+      setTabletsPerStrip('10');
+    } else if (cat === 'syrup_suspension_drops' || cat === 'inhaler') {
+      setPackagingType('STANDARD');
+      setUnitsPerBox(1);
+    } else if (cat === 'cream_ointment') {
+      setPackagingType('STANDARD');
+      setUnitsPerBox(1);
+    } else if (cat === 'injection') {
+      setPackagingType('STANDARD');
+      setUnitsPerBox(10);
+    } else {
+      setPackagingType('STANDARD');
+      setUnitsPerBox(10);
+    }
+  }
 
   if (!isOpen) return null;
 
@@ -70,14 +244,22 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
     setGeneralError(null);
 
     const body = new FormData();
-    body.append('name', formData.name);
-    body.append('brand_name', formData.brand_name);
-    body.append('strength', formData.strength);
-    body.append('dosage_form', formData.dosage_form);
-    body.append('base_unit', formData.base_unit);
-    body.append('pack_label', formData.pack_label);
-    body.append('units_per_pack', formData.units_per_pack.toString());
-    body.append('low_stock_threshold', formData.low_stock_threshold.toString());
+    body.append('name', name);
+    body.append('brand_name', brandName);
+    body.append('strength', strength);
+    body.append('dosage_form', dosageForm);
+    body.append('base_unit', baseUnit);
+    body.append('pack_label', packLabel);
+    body.append('units_per_pack', unitsPerPack.toString());
+    body.append('low_stock_threshold', lowStockThreshold.toString());
+    body.append('packaging_type', packagingType);
+
+    if (dosageCategory === 'tab_cap' && packagingType === 'BLISTER_BOX') {
+      body.append('strips_per_box', stripsPerBox.toString());
+      if (tabletsPerStrip.trim() !== '' && parseInt(tabletsPerStrip) > 0) {
+        body.append('tablets_per_strip', parseInt(tabletsPerStrip).toString());
+      }
+    }
 
     let res: MedicineActionResponse;
     if (isEditing && medicineToEdit) {
@@ -97,239 +279,422 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
     }
   }
 
-  const unitText = formData.base_unit.trim() || 'strip';
-  const pluralUnit = unitText.endsWith('s') ? unitText : `${unitText}s`;
-  const capitalizedPlural = pluralUnit.charAt(0).toUpperCase() + pluralUnit.slice(1);
-  const dynamicUnitsPerPackLabel = `${capitalizedPlural} per ${formData.pack_label || 'Pack'}`;
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
       <div className="flex min-h-full items-start sm:items-center justify-center pt-4 pb-12 sm:py-8">
         <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              {isEditing ? 'Edit Medicine' : 'Add New Medicine'}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isEditing
-                ? 'Update medicine details and inventory parameters'
-                : 'Register a medicine item in the pharmacy catalog'}
-            </p>
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {isEditing ? 'Edit Medicine' : 'Add New Medicine'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Register medicine and configure strict integer base-unit packaging rules
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {generalError && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-800 text-sm">
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
-              <div>{generalError}</div>
-            </div>
-          )}
+          {/* Form Body */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {generalError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-rose-800 text-sm">
+                <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+                <div>{generalError}</div>
+              </div>
+            )}
 
-          {isConversionLocked && (
-            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 text-xs">
-              <Lock className="w-5 h-5 shrink-0 text-amber-700 mt-0.5" />
+            {isConversionLocked && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 text-xs">
+                <Lock className="w-5 h-5 shrink-0 text-amber-700 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Packaging Conversion Locked</p>
+                  <p className="mt-0.5 text-amber-800">
+                    This medicine has recorded stock transactions. Units per pack and base unit cannot be modified to prevent stock ledger corruption.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Generic / Medicine Name */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Generic Name <span className="text-rose-500">*</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Amoxicillin, Paracetamol, Ciprofloxacin"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  error={fieldErrors.name}
+                  required
+                />
+              </div>
+
+              {/* Brand / Trade Name */}
               <div>
-                <p className="font-semibold">Packaging Conversion Locked</p>
-                <p className="mt-0.5 text-amber-800">
-                  This medicine has recorded stock transactions. Units per pack and base unit cannot be modified to prevent stock ledger corruption.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Generic / Medicine Name */}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Generic Name <span className="text-rose-500">*</span>
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g. Amoxicillin, Paracetamol, Ciprofloxacin"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                error={fieldErrors.name}
-                required
-              />
-            </div>
-
-            {/* Brand / Trade Name */}
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Brand Name <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g. Moxilen, Panadol, Cipro-Denk"
-                value={formData.brand_name}
-                onChange={(e) => setFormData({ ...formData, brand_name: e.target.value })}
-                error={fieldErrors.brand_name}
-              />
-            </div>
-
-            {/* Strength */}
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Strength <span className="text-rose-500">*</span>
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g. 500mg, 250mg/5ml, 1g"
-                value={formData.strength}
-                onChange={(e) => setFormData({ ...formData, strength: e.target.value })}
-                error={fieldErrors.strength}
-                required
-              />
-            </div>
-
-            {/* Dosage Form */}
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Dosage Form <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={formData.dosage_form}
-                onChange={(e) => setFormData({ ...formData, dosage_form: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors"
-                required
-              >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Suspension">Suspension</option>
-                <option value="Injection">Injection</option>
-                <option value="Cream">Cream</option>
-                <option value="Ointment">Ointment</option>
-                <option value="Drops">Eye/Ear Drops</option>
-                <option value="Inhaler">Inhaler</option>
-                <option value="Sachet">Sachet / Powder</option>
-                <option value="Suppository">Suppository</option>
-              </select>
-            </div>
-
-            {/* Pack Label */}
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Packaging Label <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={formData.pack_label}
-                onChange={(e) => setFormData({ ...formData, pack_label: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors"
-                required
-              >
-                <option value="Box">Box</option>
-                <option value="Pack">Pack</option>
-                <option value="Bottle">Bottle</option>
-                <option value="Strip">Strip</option>
-                <option value="Blister">Blister</option>
-                <option value="Vial">Vial</option>
-                <option value="Ampoule">Ampoule</option>
-                <option value="Tin">Tin</option>
-              </select>
-            </div>
-
-            {/* Base Unit */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-slate-700">
-                  Base Unit <span className="text-rose-500">*</span>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Brand Name <span className="text-slate-400 font-normal">(Optional)</span>
                 </label>
-                {isConversionLocked && (
-                  <span className="text-[11px] font-medium text-amber-700 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Locked
-                  </span>
-                )}
+                <Input
+                  type="text"
+                  placeholder="e.g. Moxilen, Panadol, Cipro-Denk"
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  error={fieldErrors.brand_name}
+                />
               </div>
-              <Input
-                type="text"
-                placeholder="e.g. tablet, capsule, bottle"
-                value={formData.base_unit}
-                onChange={(e) => setFormData({ ...formData, base_unit: e.target.value })}
-                error={fieldErrors.base_unit}
-                disabled={isConversionLocked}
-                required
-              />
+
+              {/* Strength */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Strength <span className="text-rose-500">*</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. 500mg, 250mg/5ml, 1g"
+                  value={strength}
+                  onChange={(e) => setStrength(e.target.value)}
+                  error={fieldErrors.strength}
+                  required
+                />
+              </div>
+
+              {/* Dosage Form Dropdown */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Dosage Form <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={dosageForm}
+                  onChange={(e) => handleDosageFormChange(e.target.value)}
+                  disabled={isConversionLocked}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors"
+                  required
+                >
+                  <option value="Tablet">Tablet (Tablets / Blister / Tin)</option>
+                  <option value="Capsule">Capsule (Capsules / Blister / Tin)</option>
+                  <option value="Syrup">Syrup (Liquid Bottle)</option>
+                  <option value="Suspension">Suspension (Liquid Bottle)</option>
+                  <option value="Eye / Ear Drops">Eye / Ear Drops</option>
+                  <option value="Injection">Injection (Ampoule / Vial)</option>
+                  <option value="Cream">Cream (Tube)</option>
+                  <option value="Ointment">Ointment (Tube)</option>
+                  <option value="Inhaler">Inhaler</option>
+                  <option value="Sachet / Powder">Sachet / Powder</option>
+                  <option value="Suppository">Suppository</option>
+                  <option value="Medical Supplies">Medical Supplies (Gloves, Syringes, etc.)</option>
+                </select>
+              </div>
             </div>
 
-            {/* Units Per Pack */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-slate-700">
-                  {dynamicUnitsPerPackLabel} <span className="text-rose-500">*</span>
-                </label>
-                {isConversionLocked && (
-                  <span className="text-[11px] font-medium text-amber-700 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Locked
+            {/* DYNAMIC PACKAGING RULES SECTION */}
+            <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-teal-700" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Packaging & Unit Conversion Configuration
                   </span>
-                )}
+                </div>
+                <span className="text-[11px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                  Base Unit: <strong className="uppercase">{baseUnit}</strong>
+                </span>
               </div>
-              <Input
-                type="number"
-                min="1"
-                placeholder={`e.g. 10`}
-                value={formData.units_per_pack}
-                onChange={(e) => setFormData({ ...formData, units_per_pack: parseInt(e.target.value) || 1 })}
-                error={fieldErrors.units_per_pack}
-                disabled={isConversionLocked}
-                required
-              />
+
+              {/* 1. TABLET / CAPSULE (tab_cap) */}
+              {dosageCategory === 'tab_cap' && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-slate-800">
+                    Select Packaging Type <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      disabled={isConversionLocked}
+                      onClick={() => setPackagingType('BLISTER_BOX')}
+                      className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                        packagingType === 'BLISTER_BOX'
+                          ? 'border-teal-600 bg-teal-50/70 text-teal-950 ring-2 ring-teal-600/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-xs">Option A: Blister Box</div>
+                        <div className="text-[10px] text-slate-500">Strips inside a box</div>
+                      </div>
+                      {packagingType === 'BLISTER_BOX' && <Check className="w-4 h-4 text-teal-700" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isConversionLocked}
+                      onClick={() => setPackagingType('TIN_BOTTLE')}
+                      className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                        packagingType === 'TIN_BOTTLE'
+                          ? 'border-teal-600 bg-teal-50/70 text-teal-950 ring-2 ring-teal-600/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-xs">Option B: Tin / Bulk Bottle</div>
+                        <div className="text-[10px] text-slate-500">Loose tablets in container</div>
+                      </div>
+                      {packagingType === 'TIN_BOTTLE' && <Check className="w-4 h-4 text-teal-700" />}
+                    </button>
+                  </div>
+
+                  {packagingType === 'BLISTER_BOX' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                          Strips per Box <span className="text-rose-500">*</span>
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 10"
+                          value={stripsPerBox}
+                          onChange={(e) => setStripsPerBox(parseInt(e.target.value) || 1)}
+                          disabled={isConversionLocked}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-medium text-slate-700">
+                            {dosageForm === 'Capsule' ? 'Capsules' : 'Tablets'} per Strip <span className="text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                        </div>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 10 (or leave empty)"
+                          value={tabletsPerStrip}
+                          onChange={(e) => setTabletsPerStrip(e.target.value)}
+                          disabled={isConversionLocked}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Leave empty if your pharmacy sells full strips only (strip becomes the Base Unit).
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        {dosageForm === 'Capsule' ? 'Capsules' : 'Tablets'} per Tin / Container <span className="text-rose-500">*</span>
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 1000"
+                        value={tabletsPerTin}
+                        onChange={(e) => setTabletsPerTin(parseInt(e.target.value) || 1)}
+                        disabled={isConversionLocked}
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 2. SYRUP / SUSPENSION & EYE/EAR DROPS */}
+              {dosageCategory === 'syrup_suspension_drops' && (
+                <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    Fixed Standard Packaging (1 Bottle per Box)
+                  </div>
+                  <p className="text-slate-500">
+                    Syrups, suspensions, and drops are individual sealed bottles. The system automatically tracks stock in bottles.
+                  </p>
+                </div>
+              )}
+
+              {/* 3. INJECTION (injection) */}
+              {dosageCategory === 'injection' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Ampoules / Vials per Box <span className="text-rose-500">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 10"
+                      value={unitsPerBox}
+                      onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
+                      disabled={isConversionLocked}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Container Type <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setInjectionUnitType('ampoule')}
+                        className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all ${
+                          injectionUnitType === 'ampoule'
+                            ? 'bg-teal-700 text-white border-teal-700'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        Ampoule
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInjectionUnitType('vial')}
+                        className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all ${
+                          injectionUnitType === 'vial'
+                            ? 'bg-teal-700 text-white border-teal-700'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        Vial
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. CREAM / OINTMENT (cream_ointment) */}
+              {dosageCategory === 'cream_ointment' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Tubes per Box <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 1 (or 10 for multi-pack)"
+                    value={unitsPerBox}
+                    onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
+                    disabled={isConversionLocked}
+                    required
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Defaults to 1 tube per box, but editable if purchased in multi-packs.
+                  </p>
+                </div>
+              )}
+
+              {/* 5. INHALER */}
+              {dosageCategory === 'inhaler' && (
+                <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    Fixed Standard Packaging (1 Inhaler per Box)
+                  </div>
+                  <p className="text-slate-500">
+                    Inhalers are single unit devices. Stock is tracked directly as individual inhalers.
+                  </p>
+                </div>
+              )}
+
+              {/* 6. SACHET / POWDER */}
+              {dosageCategory === 'sachet_powder' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Sachets per Box <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 20, 50"
+                    value={unitsPerBox}
+                    onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
+                    disabled={isConversionLocked}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* 7. SUPPOSITORY */}
+              {dosageCategory === 'suppository' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Suppositories per Box <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 5, 10"
+                    value={unitsPerBox}
+                    onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
+                    disabled={isConversionLocked}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* 8. MEDICAL SUPPLIES */}
+              {dosageCategory === 'medical_supplies' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Pieces per Box <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 100 for gloves, 50 for syringes"
+                    value={unitsPerBox}
+                    onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
+                    disabled={isConversionLocked}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Dynamic Mathematical Conversion Note */}
+              <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl flex items-center gap-2.5 text-teal-900 text-xs">
+                <Sparkles className="w-4 h-4 text-teal-700 shrink-0" />
+                <div className="flex-1">
+                  <strong>Conversion Rule:</strong> {packagingDescription}.
+                  <span className="block text-[11px] text-teal-800 mt-0.5">
+                    Database will strictly store stock as an integer in <strong>{baseUnit}s</strong>.
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Low-stock threshold */}
-            <div className="sm:col-span-2">
+            <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Low Stock Threshold ({pluralUnit})
+                Low Stock Threshold ({baseUnit}s)
               </label>
               <Input
                 type="number"
                 min="0"
-                placeholder="e.g. 20"
-                value={formData.low_stock_threshold}
-                onChange={(e) =>
-                  setFormData({ ...formData, low_stock_threshold: parseInt(e.target.value) || 0 })
-                }
+                placeholder="e.g. 10"
+                value={lowStockThreshold}
+                onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 0)}
                 error={fieldErrors.low_stock_threshold}
-                helperText={`Alert triggered when available ${pluralUnit.toLowerCase()} fall below this number.`}
+                helperText={`Trigger alert when available ${baseUnit}s fall below this number.`}
                 required
               />
             </div>
-          </div>
 
-          {/* Conversion Example Note */}
-          <div className="p-3 bg-teal-50/60 border border-teal-100 rounded-xl flex items-center gap-2.5 text-teal-800 text-xs">
-            <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-            <div>
-              <strong>Conversion Rule:</strong> 1 {formData.pack_label} ={' '}
-              <span className="font-semibold">{formData.units_per_pack} {pluralUnit}</span>.
-              Purchasing 3 {formData.pack_label}s + 12 loose {pluralUnit} ={' '}
-              <span className="font-semibold">
-                {3 * (formData.units_per_pack || 1) + 12} {pluralUnit}
-              </span>.
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" isLoading={isSubmitting}>
+                {isEditing ? 'Save Changes' : 'Create Medicine'}
+              </Button>
             </div>
-          </div>
-
-          {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
-              {isEditing ? 'Save Changes' : 'Create Medicine'}
-            </Button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
       </div>
     </div>
   );

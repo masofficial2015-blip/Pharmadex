@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Minus, Sparkles, Layers, Pill, AlertTriangle, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatStockBreakdown, formatPackagingFormula } from '@/lib/utils/packaging';
 import type { PosMedicineItem, CartItem } from '@/types';
 
 interface QuantityConfigModalProps {
@@ -112,8 +113,8 @@ export function QuantityConfigModal({
               <span>•</span>
               <span>{medicine.dosage_form}</span>
               <span>•</span>
-              <span className="text-slate-700">
-                1 {packLabel} = {unitsPerPack} {baseUnit}s
+              <span className="text-slate-700 font-semibold text-teal-800">
+                {formatPackagingFormula(medicine)}
               </span>
             </div>
           </div>
@@ -132,8 +133,7 @@ export function QuantityConfigModal({
             <div>
               <span className="text-slate-500 block">Available in Stock:</span>
               <span className="font-extrabold text-slate-900 text-sm">
-                {medicine.available_packs} {packLabel}s
-                {medicine.available_loose > 0 ? ` + ${medicine.available_loose} ${baseUnit}s` : ''}
+                {formatStockBreakdown(medicine.total_available_units, medicine)}
               </span>
               <span className="text-[11px] text-slate-500 ml-1">
                 ({medicine.total_available_units.toLocaleString()} {baseUnit}s)

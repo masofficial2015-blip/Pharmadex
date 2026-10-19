@@ -6,8 +6,11 @@ export const medicineFormSchema = z.object({
   strength: z.string().trim().min(1, 'Strength is required (e.g. 500mg, 250mg/5ml)'),
   dosage_form: z.string().trim().min(2, 'Dosage form is required (e.g. Tablet, Capsule, Syrup)'),
   base_unit: z.string().trim().min(1, 'Base unit is required (e.g. tablet, capsule, bottle, ampoule)'),
-  pack_label: z.string().trim().min(1, 'Pack label is required').default('Pack'),
+  pack_label: z.string().trim().min(1, 'Pack label is required').default('Box'),
   units_per_pack: z.coerce.number().int().min(1, 'Units per pack must be at least 1'),
+  packaging_type: z.string().trim().optional().nullable(),
+  strips_per_box: z.coerce.number().int().min(1).optional().nullable(),
+  tablets_per_strip: z.coerce.number().int().min(1).optional().nullable(),
   low_stock_threshold: z.coerce.number().int().min(0, 'Low stock threshold cannot be negative').default(10),
 });
 
