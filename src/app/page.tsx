@@ -47,15 +47,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-white shrink-0">
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs shrink-0 flex items-center justify-center p-1">
             <Image
               src="/pharmadex.png"
               alt="Pharmadex Logo"
-              fill
-              sizes="36px"
-              className="object-cover"
+              width={36}
+              height={36}
+              className="object-contain"
               priority
             />
           </div>
@@ -65,7 +65,7 @@ export default function HomePage() {
                 Pharmadex
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block font-medium">
+            <p className="text-[11px] text-slate-500 font-medium">
               Pharmacy Management &amp; POS
             </p>
           </div>
@@ -95,7 +95,23 @@ export default function HomePage() {
           <div className="absolute -right-16 -top-16 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8">
+            {/* Prominent Logo Display (Appears first on mobile screens for immediate brand recognition) */}
+            <div className="shrink-0 flex flex-col items-center justify-center order-first md:order-last">
+              <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl overflow-hidden bg-white/10 backdrop-blur-md border border-white/20 p-2 shadow-2xl">
+                <div className="relative w-full h-full rounded-2xl overflow-hidden bg-white p-2 flex items-center justify-center">
+                  <Image
+                    src="/pharmadex.png"
+                    alt="Pharmadex Pharmacy Software"
+                    width={128}
+                    height={128}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="max-w-2xl space-y-4 text-center md:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-800/60 border border-teal-700 text-teal-200 text-xs font-medium tracking-wide">
                 <Sparkles className="w-3.5 h-3.5 text-teal-400" />
@@ -122,22 +138,6 @@ export default function HomePage() {
                 <div className="text-xs text-teal-200/90 flex items-center gap-1.5 px-3 py-2">
                   <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0" />
                   <span>Role-Based Access &amp; Audit Security</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Prominent Logo Display */}
-            <div className="shrink-0 flex flex-col items-center justify-center">
-              <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl overflow-hidden bg-white/10 backdrop-blur-md border border-white/20 p-2 shadow-2xl">
-                <div className="relative w-full h-full rounded-2xl overflow-hidden bg-white">
-                  <Image
-                    src="/pharmadex.png"
-                    alt="Pharmadex Pharmacy Software"
-                    fill
-                    sizes="(max-width: 640px) 112px, 144px"
-                    className="object-contain p-1"
-                    priority
-                  />
                 </div>
               </div>
             </div>

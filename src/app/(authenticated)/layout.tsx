@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { logoutAction } from '@/app/actions/auth';
@@ -30,12 +31,21 @@ export default async function AuthenticatedLayout({
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-teal-700 flex items-center justify-center text-white font-bold text-base shadow-sm group-hover:bg-teal-800 transition-colors">
-              Px
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 shadow-xs flex items-center justify-center p-0.5 shrink-0">
+              <Image
+                src="/pharmadex.png"
+                alt="Pharmadex Logo"
+                width={30}
+                height={30}
+                className="object-contain"
+                priority
+              />
             </div>
             <div>
-              <span className="font-bold text-slate-900 tracking-tight text-base sm:text-lg">Pharmadex</span>
+              <span className="font-bold text-slate-900 tracking-tight text-base sm:text-lg group-hover:text-teal-900 transition-colors">
+                Pharmadex
+              </span>
               <span className="text-[10px] text-teal-800 font-bold ml-1.5 bg-teal-50 border border-teal-200 px-1.5 py-0.2 rounded hidden sm:inline-block">
                 ETB
               </span>
