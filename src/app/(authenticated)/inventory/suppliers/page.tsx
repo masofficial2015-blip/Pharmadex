@@ -1,10 +1,8 @@
 import React from 'react';
-import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth';
 import { getSuppliersWithBalances } from '@/app/actions/suppliers';
 import { SupplierList } from '@/components/inventory/supplier-list';
-import { Building2, PackagePlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Building2 } from 'lucide-react';
 
 export const metadata = {
   title: 'Suppliers Management | Pharmadex',
@@ -30,13 +28,6 @@ export default async function SuppliersPage() {
             Maintain essential supplier contacts and track outstanding credit (Dube) balances.
           </p>
         </div>
-
-        <Link href="/inventory/receive">
-          <Button variant="primary" className="bg-teal-700 hover:bg-teal-800 text-white font-semibold text-xs gap-1.5 shadow-2xs">
-            <PackagePlus className="w-4 h-4" />
-            Receive Stock
-          </Button>
-        </Link>
       </div>
 
       <SupplierList initialSuppliers={suppliers} isAdmin={isAdmin} />

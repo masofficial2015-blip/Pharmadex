@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef, useEffect, useMemo } from 'react';
 import {
   PackagePlus,
   Building2,
@@ -14,6 +14,10 @@ import {
   Sparkles,
   Layers,
   ArrowRight,
+  Search,
+  Check,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +38,34 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(
     suppliers.length > 0 ? suppliers[0].id : ''
   );
+
+  const [medicineSearchQuery, setMedicineSearchQuery] = useState('');
+  const [isMedicineDropdownOpen, setIsMedicineDropdownOpen] = useState(false);
+  const medicineDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (medicineDropdownRef.current && !medicineDropdownRef.current.contains(event.target as Node)) {
+        setIsMedicineDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter medicines in real-time by search query
+  const filteredMedicines = useMemo(() => {
+    const q = medicineSearchQuery.toLowerCase().trim();
+    if (!q) return medicines;
+    return medicines.filter((m) => {
+      const name = m.name?.toLowerCase() || '';
+      const brand = m.brand_name?.toLowerCase() || '';
+      const strength = m.strength?.toLowerCase() || '';
+      const form = m.dosage_form?.toLowerCase() || '';
+      return name.includes(q) || brand.includes(q) || strength.includes(q) || form.includes(q);
+    });
+  }, [medicines, medicineSearchQuery]);
 
   const [batchNumber, setBatchNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -181,23 +213,121 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
             </select>
           </div>
 
-          {/* Medicine Picker */}
-          <div>
+          {/* Medicine Picker with Live Search */}
+          <div className="relative" ref={medicineDropdownRef}>
             <label className="block text-xs font-medium text-slate-700 mb-1">
               Select Medicine <span className="text-rose-500">*</span>
             </label>
-            <select
-              value={selectedMedicineId}
-              onChange={(e) => setSelectedMedicineId(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors"
-              required
-            >
-              {medicines.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} {m.strength} ({m.dosage_form}) {m.brand_name ? `- [${m.brand_name}]` : ''}
-                </option>
-              ))}
-            </select>
+
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={
+                  isMedicineDropdownOpen
+                    ? medicineSearchQuery
+                    : currentMedicine
+                    ? `${currentMedicine.name} ${currentMedicine.strength} (${currentMedicine.dosage_form})${
+                        currentMedicine.brand_name ? ` - [${currentMedicine.brand_name}]` : ''
+                      }`
+                    : ''
+                }
+                onChange={(e) => {
+                  setMedicineSearchQuery(e.target.value);
+                  if (!isMedicineDropdownOpen) setIsMedicineDropdownOpen(true);
+                }}
+                onFocus={() => {
+                  setIsMedicineDropdownOpen(true);
+                  if (!medicineSearchQuery) setMedicineSearchQuery('');
+                }}
+                placeholder="Search medicine by name, brand, strength..."
+                className="w-full pl-10 pr-9 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors shadow-2xs font-medium text-slate-900"
+                autoComplete="off"
+              />
+
+              {isMedicineDropdownOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (medicineSearchQuery) {
+                      setMedicineSearchQuery('');
+                    } else {
+                      setIsMedicineDropdownOpen(false);
+                    }
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100"
+                  title="Close search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedicineSearchQuery('');
+                    setIsMedicineDropdownOpen(true);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100"
+                  title="Search medicine"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Hidden Input for Form Submission Fallback */}
+            <input type="hidden" name="medicine_id" value={selectedMedicineId} />
+
+            {/* Dropdown Results List */}
+            {isMedicineDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl border border-slate-200 shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100">
+                {filteredMedicines.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">
+                    No medicines matching &ldquo;{medicineSearchQuery}&rdquo;.
+                  </div>
+                ) : (
+                  filteredMedicines.map((m) => {
+                    const isSelected = m.id === selectedMedicineId;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMedicineId(m.id);
+                          setIsMedicineDropdownOpen(false);
+                          setMedicineSearchQuery('');
+                        }}
+                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 text-xs transition-colors hover:bg-teal-50/70 ${
+                          isSelected ? 'bg-teal-50/90 text-teal-950 font-medium' : 'text-slate-800'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                            <span>{m.name}</span>
+                            <span className="text-teal-700 font-bold">{m.strength}</span>
+                            {m.brand_name && (
+                              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] border border-slate-200">
+                                {m.brand_name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                            <span>{m.dosage_form}</span>
+                            <span>•</span>
+                            <span>1 {m.pack_label || 'Pack'} = {m.units_per_pack} {m.base_unit}s</span>
+                            <span>•</span>
+                            <span>Stock: {m.total_units_in_stock} {m.base_unit}s</span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-teal-700 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         </div>
 

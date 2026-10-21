@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoginForm } from '@/components/auth/login-form';
 import { ShieldCheck } from 'lucide-react';
@@ -9,8 +10,17 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-teal-700 text-white font-bold text-2xl flex items-center justify-center mx-auto shadow-md">
-            Px
+          <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-md mx-auto p-1">
+            <div className="relative w-full h-full rounded-xl overflow-hidden">
+              <Image
+                src="/pharmadex.png"
+                alt="Pharmadex Logo"
+                fill
+                sizes="56px"
+                className="object-contain"
+                priority
+              />
+            </div>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Pharmadex</h1>
