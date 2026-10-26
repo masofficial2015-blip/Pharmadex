@@ -88,27 +88,11 @@ export async function getActiveShift(): Promise<ShiftSummary | null> {
     });
   }
 
-  // 3. Fetch cash till movements (PAY_IN / PAY_OUT)
-  const { data: rawCashMovements } = await (adminSupabase.from('cash_movements') as any)
-    .select('movement_type, amount')
-    .eq('shift_id', shiftId);
-
-  let cashInTotal = 0;
-  let cashOutTotal = 0;
-  (rawCashMovements || []).forEach((m: { movement_type: string; amount: number }) => {
-    const amt = Number(m.amount || 0);
-    if (m.movement_type === 'PAY_IN') {
-      cashInTotal += amt;
-    } else if (m.movement_type === 'PAY_OUT') {
-      cashOutTotal += amt;
-    }
-  });
-
-  // 4. Expected Physical Cash in Till Calculation:
-  // Expected = Opening Cash + Cash Sales - Cash Refunds + (Cash In - Cash Out)
+  // 3. Expected Physical Cash in Till Calculation:
+  // Expected = Opening Cash + Cash Sales - Cash Refunds
   const openingCash = Number(shift.opening_cash || 0);
   const expectedClosingCash = Number(
-    (openingCash + cashSalesTotal - cashRefundsTotal + (cashInTotal - cashOutTotal)).toFixed(2)
+    (openingCash + cashSalesTotal - cashRefundsTotal).toFixed(2)
   );
 
   return {
@@ -118,8 +102,8 @@ export async function getActiveShift(): Promise<ShiftSummary | null> {
     cash_sales_total: Number(cashSalesTotal.toFixed(2)),
     bank_sales_total: Number(bankSalesTotal.toFixed(2)),
     cash_refunds_total: Number(cashRefundsTotal.toFixed(2)),
-    cash_in_total: Number(cashInTotal.toFixed(2)),
-    cash_out_total: Number(cashOutTotal.toFixed(2)),
+    cash_in_total: 0,
+    cash_out_total: 0,
     expected_closing_cash: expectedClosingCash,
     actual_closing_cash: shift.actual_closing_cash,
     cash_discrepancy: shift.cash_discrepancy,

@@ -139,20 +139,6 @@ export function CloseShiftModal({
               </div>
             )}
 
-            {cashIn > 0 && (
-              <div className="flex justify-between text-teal-800">
-                <span>Cash Till Pay In (+)</span>
-                <span className="font-mono">+{cashIn.toLocaleString()} ETB</span>
-              </div>
-            )}
-
-            {cashOut > 0 && (
-              <div className="flex justify-between text-amber-800">
-                <span>Cash Till Pay Out (-)</span>
-                <span className="font-mono">-{cashOut.toLocaleString()} ETB</span>
-              </div>
-            )}
-
             <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
               <span>Expected Cash in Till (=)</span>
               <span className="font-mono text-base text-teal-900">

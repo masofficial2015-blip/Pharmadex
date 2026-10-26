@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireAdmin, requireUser, recordAuditLog } from '@/lib/auth';
+import { requireAdmin, requireUser, requirePermission, recordAuditLog } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { supplierFormSchema } from '@/lib/validations/inventory';
 import type { Supplier, SupplierWithBalance } from '@/types';
@@ -18,7 +18,7 @@ export interface SupplierActionResponse {
  * Fetch all suppliers along with their accumulated credit / Dube balances.
  */
 export async function getSuppliersWithBalances(): Promise<SupplierWithBalance[]> {
-  await requireAdmin();
+  await requirePermission('manage_suppliers');
   const adminSupabase = createAdminClient();
 
   const { data: rawSuppliers, error: supError } = await adminSupabase
@@ -72,7 +72,7 @@ export async function createSupplierAction(
   _prevState: SupplierActionResponse | null,
   formData: FormData
 ): Promise<SupplierActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_suppliers');
   const adminSupabase = createAdminClient();
 
   const raw = {
@@ -154,7 +154,7 @@ export async function updateSupplierAction(
   _prevState: SupplierActionResponse | null,
   formData: FormData
 ): Promise<SupplierActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_suppliers');
   const adminSupabase = createAdminClient();
 
   const { data: existingRaw, error: fetchError } = await adminSupabase
@@ -245,7 +245,7 @@ export async function updateSupplierAction(
  * Toggle supplier active status.
  */
 export async function toggleSupplierStatusAction(supplierId: string): Promise<SupplierActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_suppliers');
   const adminSupabase = createAdminClient();
 
   const { data: existingRaw, error: fetchError } = await adminSupabase

@@ -55,15 +55,28 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
                 {filteredShifts.map(({ shift, user }) => {
-                  const opened = new Date(shift.opened_at).toLocaleString('en-US', {
+                  const openedDate = new Date(shift.opened_at);
+                  const closedDate = shift.closed_at ? new Date(shift.closed_at) : null;
+
+                  const opened = openedDate.toLocaleString('en-US', {
                     dateStyle: 'short',
                     timeStyle: 'short',
                   });
-                  const closed = shift.closed_at
-                    ? new Date(shift.closed_at).toLocaleTimeString('en-US', {
+
+                  const closed = closedDate
+                    ? closedDate.toLocaleString('en-US', {
+                        dateStyle: 'short',
                         timeStyle: 'short',
                       })
-                    : '—';
+                    : null;
+
+                  let durationStr = '';
+                  if (closedDate) {
+                    const diffMs = Math.max(0, closedDate.getTime() - openedDate.getTime());
+                    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                  }
 
                   const expected = Number(shift.expected_closing_cash || 0);
                   const actual = Number(shift.actual_closing_cash || 0);
@@ -79,8 +92,19 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-600 font-sans">
-                        <div>{opened}</div>
-                        <div className="text-[11px] text-slate-400">Closed at {closed}</div>
+                        <div className="font-medium text-slate-900">{opened}</div>
+                        {closed ? (
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span>Closed: {closed}</span>
+                            {durationStr && (
+                              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded text-[10px] font-mono">
+                                ({durationStr})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-emerald-600 font-semibold">Active</span>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4 text-right text-slate-700">

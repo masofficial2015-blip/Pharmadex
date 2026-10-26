@@ -157,9 +157,14 @@ export function QuantityConfigModal({
                 <span className="text-xs font-bold text-slate-900 block">
                   Full {packLabel}s
                 </span>
-                <span className="text-[11px] text-slate-500 font-mono">
+                <span className="text-[11px] text-slate-500 font-mono block">
                   {medicine.pack_price.toLocaleString()} ETB / {packLabel}
                 </span>
+                {medicine.pack_price === 0 && (
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium mt-0.5 inline-block">
+                    Initial untracked price (0.00 ETB)
+                  </span>
+                )}
               </div>
 
               {/* Stepper Controls */}

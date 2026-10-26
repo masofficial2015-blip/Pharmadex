@@ -41,6 +41,7 @@ export async function createPharmacistAction(
   }
 
   const { fullName, email, phoneNumber, password } = parsed.data;
+  const permissions = (formData.getAll('permissions') as string[]).filter(Boolean);
   const adminSupabase = createAdminClient();
 
   // Create user in Supabase Auth via Admin API
@@ -68,6 +69,7 @@ export async function createPharmacistAction(
     role: 'PHARMACIST',
     phone_number: phoneNumber || null,
     is_active: true,
+    permissions: permissions,
   });
 
   if (profileError) {
@@ -89,6 +91,7 @@ export async function createPharmacistAction(
       role: 'PHARMACIST',
       phone_number: phoneNumber || null,
       is_active: true,
+      permissions: permissions,
     },
     performedBy: admin.userId,
   });
@@ -215,5 +218,63 @@ export async function resetStaffPasswordAction(
   return {
     success: true,
     message: `Password for ${targetProfile.full_name} has been updated successfully.`,
+  };
+}
+
+/**
+ * Owner-only action to update a pharmacist's privileged access rights.
+ */
+export async function updateStaffPermissionsAction(
+  userId: string,
+  permissions: import('@/types').PharmacistPermission[]
+): Promise<StaffActionResponse> {
+  const admin = await requireAdmin();
+  const adminSupabase = createAdminClient();
+
+  // Check target user
+  const { data: rawTarget, error: fetchError } = await adminSupabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  const targetProfile = rawTarget as unknown as import('@/types').Profile | null;
+
+  if (fetchError || !targetProfile) {
+    return { error: 'Staff member not found.' };
+  }
+
+  if (targetProfile.role === 'ADMIN') {
+    return { error: 'Admin permissions are fixed and cannot be modified.' };
+  }
+
+  // Update permissions in profiles
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (adminSupabase.from('profiles') as any)
+    .update({ permissions })
+    .eq('id', userId);
+
+  if (updateError) {
+    return { error: `Failed to update permissions: ${updateError.message}` };
+  }
+
+  // Audit log
+  await recordAuditLog({
+    tableName: 'profiles',
+    recordId: userId,
+    action: 'UPDATE',
+    oldData: { permissions: targetProfile.permissions },
+    newData: { permissions },
+    performedBy: admin.userId,
+  });
+
+  revalidatePath('/admin/staff');
+  revalidatePath('/inventory/receive');
+  revalidatePath('/inventory/suppliers');
+  revalidatePath('/inventory/movements');
+  revalidatePath('/inventory/medicines');
+  return {
+    success: true,
+    message: `Privileged access rights for ${targetProfile.full_name} updated successfully.`,
   };
 }

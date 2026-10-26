@@ -78,6 +78,41 @@ export async function requireAdmin(): Promise<AuthContext> {
 }
 
 /**
+ * Checks whether a user profile has a specific privileged permission.
+ * Owners/Admins always have full permissions.
+ */
+export function hasPermission(
+  profile: Profile | null | undefined,
+  permission: import('@/types').PharmacistPermission
+): boolean {
+  if (!profile) return false;
+  if (profile.role === 'ADMIN') return true;
+  return Boolean(profile.permissions?.includes(permission));
+}
+
+/**
+ * Asserts that the authenticated user is either an Owner/Admin or a Pharmacist
+ * granted the specific privileged access permission.
+ * Redirects to /unauthorized if access is not granted.
+ */
+export async function requirePermission(
+  permission: import('@/types').PharmacistPermission
+): Promise<AuthContext> {
+  const auth = await requireUser();
+
+  if (auth.profile.role === 'ADMIN') {
+    return auth;
+  }
+
+  const permissions = auth.profile.permissions || [];
+  if (!permissions.includes(permission)) {
+    redirect('/unauthorized');
+  }
+
+  return auth;
+}
+
+/**
  * Record an entry into the system-wide audit_logs table.
  */
 export async function recordAuditLog(params: {

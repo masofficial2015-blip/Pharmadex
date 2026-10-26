@@ -1,5 +1,5 @@
 import React from 'react';
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { getSuppliersWithBalances } from '@/app/actions/suppliers';
 import { SupplierList } from '@/components/inventory/supplier-list';
 import { Building2 } from 'lucide-react';
@@ -10,8 +10,8 @@ export const metadata = {
 };
 
 export default async function SuppliersPage() {
-  const { profile } = await requireAdmin();
-  const isAdmin = profile.role === 'ADMIN';
+  const { profile } = await requirePermission('manage_suppliers');
+  const isAdmin = true; // Permitted user has management rights
   const suppliers = await getSuppliersWithBalances();
 
   return (

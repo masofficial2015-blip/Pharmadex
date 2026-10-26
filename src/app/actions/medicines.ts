@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireAdmin, requireUser, recordAuditLog } from '@/lib/auth';
+import { requireAdmin, requireUser, requirePermission, recordAuditLog } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { medicineFormSchema } from '@/lib/validations/inventory';
 import type { Medicine, MedicineInventorySummary } from '@/types';
@@ -140,7 +140,7 @@ export async function createMedicineAction(
   _prevState: MedicineActionResponse | null,
   formData: FormData
 ): Promise<MedicineActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_medicines');
   const adminSupabase = createAdminClient();
 
   const raw = {
@@ -249,7 +249,7 @@ export async function updateMedicineAction(
   _prevState: MedicineActionResponse | null,
   formData: FormData
 ): Promise<MedicineActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_medicines');
   const adminSupabase = createAdminClient();
 
   const { data: existingRaw, error: fetchError } = await adminSupabase
@@ -377,7 +377,7 @@ export async function updateMedicineAction(
  * Toggle active status of a medicine (enable / disable).
  */
 export async function toggleMedicineStatusAction(medicineId: string): Promise<MedicineActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('manage_medicines');
   const adminSupabase = createAdminClient();
 
   const { data: existingRaw, error: fetchError } = await adminSupabase

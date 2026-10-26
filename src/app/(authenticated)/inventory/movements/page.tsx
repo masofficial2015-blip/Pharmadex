@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { getStockMovementsLedger } from '@/app/actions/inventory';
 import { StockMovementTable } from '@/components/inventory/stock-movement-table';
 import { History, PackagePlus } from 'lucide-react';
@@ -12,7 +12,7 @@ export const metadata = {
 };
 
 export default async function StockMovementsPage() {
-  await requireAdmin();
+  await requirePermission('view_ledger');
   const movements = await getStockMovementsLedger();
 
   return (

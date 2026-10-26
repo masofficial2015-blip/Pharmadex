@@ -34,6 +34,7 @@ export interface Database {
           role: UserRole;
           phone_number: string | null;
           is_active: boolean;
+          permissions: string[];
           created_at: string;
           updated_at: string;
         };
@@ -43,6 +44,7 @@ export interface Database {
           role: UserRole;
           phone_number?: string | null;
           is_active?: boolean;
+          permissions?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -52,6 +54,7 @@ export interface Database {
           role?: UserRole;
           phone_number?: string | null;
           is_active?: boolean;
+          permissions?: string[];
           created_at?: string;
           updated_at?: string;
         };

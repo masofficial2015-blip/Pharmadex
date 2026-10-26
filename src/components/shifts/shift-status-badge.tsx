@@ -5,7 +5,6 @@ import { Clock, Plus, LogOut, ArrowLeftRight, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { OpenShiftModal } from './open-shift-modal';
 import { CloseShiftModal } from './close-shift-modal';
-import { CashMovementModal } from './cash-movement-modal';
 import type { ShiftSummary } from '@/types';
 
 interface ShiftStatusBadgeProps {
@@ -16,7 +15,6 @@ interface ShiftStatusBadgeProps {
 export function ShiftStatusBadge({ activeShift, currentUserId }: ShiftStatusBadgeProps) {
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
-  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
 
   return (
     <>
@@ -35,17 +33,8 @@ export function ShiftStatusBadge({ activeShift, currentUserId }: ShiftStatusBadg
             <div className="flex items-center gap-1 ml-2 border-l border-emerald-200 pl-2">
               <button
                 type="button"
-                onClick={() => setIsMovementModalOpen(true)}
-                className="px-2 py-0.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 rounded-md transition-colors"
-                title="Record Cash Movement"
-              >
-                Till In/Out
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setIsCloseModalOpen(true)}
-                className="px-2 py-0.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 rounded-md transition-colors"
+                className="px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 rounded-md transition-colors"
                 title="Close Shift"
               >
                 Close Shift
@@ -76,19 +65,12 @@ export function ShiftStatusBadge({ activeShift, currentUserId }: ShiftStatusBadg
       />
 
       {activeShift && (
-        <>
-          <CloseShiftModal
-            isOpen={isCloseModalOpen}
-            onClose={() => setIsCloseModalOpen(false)}
-            shiftSummary={activeShift}
-            onSuccess={() => window.location.reload()}
-          />
-          <CashMovementModal
-            isOpen={isMovementModalOpen}
-            onClose={() => setIsMovementModalOpen(false)}
-            onSuccess={() => window.location.reload()}
-          />
-        </>
+        <CloseShiftModal
+          isOpen={isCloseModalOpen}
+          onClose={() => setIsCloseModalOpen(false)}
+          shiftSummary={activeShift}
+          onSuccess={() => window.location.reload()}
+        />
       )}
     </>
   );

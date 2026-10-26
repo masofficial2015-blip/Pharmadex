@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { getMedicinesWithInventory } from '@/app/actions/medicines';
 import { getSuppliersWithBalances } from '@/app/actions/suppliers';
 import { StockReceiveForm } from '@/components/inventory/stock-receive-form';
@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 export default async function StockReceivePage() {
-  await requireAdmin();
+  await requirePermission('receive_stock');
   const [medicines, suppliers] = await Promise.all([
     getMedicinesWithInventory(),
     getSuppliersWithBalances(),

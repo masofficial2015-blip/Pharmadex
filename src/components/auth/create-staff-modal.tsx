@@ -110,8 +110,56 @@ export function CreateStaffModal({ isOpen, onClose }: CreateStaffModalProps) {
             </button>
           </div>
 
+          {/* Privileged Permissions */}
+          <div className="pt-2 border-t border-slate-100">
+            <span className="text-xs font-semibold text-slate-700 block mb-1.5">
+              Privileged Access Rights (Optional)
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="permissions"
+                  value="receive_stock"
+                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                />
+                <span className="text-[11px] font-medium text-slate-700">Receive Stock</span>
+              </label>
+
+              <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="permissions"
+                  value="manage_suppliers"
+                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                />
+                <span className="text-[11px] font-medium text-slate-700">Manage Suppliers</span>
+              </label>
+
+              <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="permissions"
+                  value="manage_medicines"
+                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                />
+                <span className="text-[11px] font-medium text-slate-700">Manage Medicines</span>
+              </label>
+
+              <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="permissions"
+                  value="view_ledger"
+                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                />
+                <span className="text-[11px] font-medium text-slate-700">Stock Ledger</span>
+              </label>
+            </div>
+          </div>
+
           <p className="text-xs text-slate-500">
-            This creates an active pharmacist account immediately. The pharmacist can use these credentials to sign in and record sales.
+            This creates an active pharmacist account immediately with the selected permissions.
           </p>
 
           {/* Footer Buttons */}

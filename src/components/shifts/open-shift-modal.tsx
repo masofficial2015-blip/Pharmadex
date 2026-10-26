@@ -69,19 +69,9 @@ export function OpenShiftModal({ isOpen, onClose, onSuccess }: OpenShiftModalPro
               </div>
             )}
 
-            <div className="p-3.5 bg-teal-50/60 border border-teal-100 rounded-xl flex items-start gap-3 text-teal-900 text-xs">
-              <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Single Active Shift Rule:</span> Only one shift can be active across the pharmacy at a time. All subsequent sales and cash receipts will be signed with your pharmacist ID.
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-2">
-              <p className="font-semibold text-slate-800">Ready to start duty?</p>
-              <p className="text-slate-500 leading-relaxed">
-                Opening cash float is set to <strong>0 ETB</strong>. Shift sales, cash collections, and till movements will be tracked automatically for closing reconciliation.
-              </p>
-            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Opening cash float is set to <strong>0 ETB</strong>. Subsequent sales and collections will be logged under your pharmacist account for reconciliation.
+            </p>
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

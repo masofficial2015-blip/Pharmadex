@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireAdmin, requireUser, recordAuditLog } from '@/lib/auth';
+import { requireAdmin, requireUser, requirePermission, recordAuditLog } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { stockReceiveSchema } from '@/lib/validations/inventory';
 import type {
@@ -72,7 +72,7 @@ export async function getBatchesWithStatus(): Promise<BatchWithDetails[]> {
  * Retrieve the immutable stock movements ledger with audit relations.
  */
 export async function getStockMovementsLedger(): Promise<StockMovementWithDetails[]> {
-  await requireAdmin();
+  await requirePermission('view_ledger');
   const adminSupabase = createAdminClient();
 
   const { data: rawMovements, error } = await adminSupabase
@@ -105,7 +105,7 @@ export async function receiveStockAction(
   _prevState: InventoryActionResponse | null,
   formData: FormData
 ): Promise<InventoryActionResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('receive_stock');
   const adminSupabase = createAdminClient();
 
   const raw = {
@@ -341,4 +341,41 @@ export async function receiveStockAction(
       batchId,
     },
   };
+}
+
+/**
+ * Quick update for batch selling and cost prices.
+ * Used especially when migrating legacy initial stock with 0.00 prices.
+ */
+export async function updateBatchPricingAction(
+  batchId: string,
+  sellingPricePerPack: number,
+  sellingPricePerUnit: number,
+  costPerPack?: number
+): Promise<{ success: boolean; error?: string }> {
+  await requireUser();
+  const adminSupabase = createAdminClient();
+
+  const updateData: Record<string, unknown> = {
+    selling_price_per_pack: sellingPricePerPack,
+    selling_price_per_unit: sellingPricePerUnit,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (costPerPack !== undefined && costPerPack >= 0) {
+    updateData.cost_per_pack = costPerPack;
+  }
+
+  const { error } = await (adminSupabase.from('batches') as any)
+    .update(updateData)
+    .eq('id', batchId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath('/inventory/batches');
+  revalidatePath('/pos');
+  revalidatePath('/inventory/medicines');
+  return { success: true };
 }

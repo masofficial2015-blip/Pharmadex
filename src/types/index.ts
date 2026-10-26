@@ -3,6 +3,11 @@ export * from './database.types';
 import type { Database, PaymentMethod } from './database.types';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type PharmacistPermission =
+  | 'receive_stock'
+  | 'manage_suppliers'
+  | 'manage_medicines'
+  | 'view_ledger';
 export type Supplier = Database['public']['Tables']['suppliers']['Row'];
 export type Medicine = Database['public']['Tables']['medicines']['Row'];
 export type Batch = Database['public']['Tables']['batches']['Row'];

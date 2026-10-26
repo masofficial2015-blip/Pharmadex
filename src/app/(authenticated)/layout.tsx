@@ -4,18 +4,9 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { logoutAction } from '@/app/actions/auth';
 import { Badge } from '@/components/ui/badge';
-import {
-  LayoutDashboard,
-  Users,
-  ShieldCheck,
-  LogOut,
-  User,
-  Shield,
-  Activity,
-  ShoppingCart,
-  Clock,
-  Building2,
-} from 'lucide-react';
+import { DesktopNav } from '@/components/navigation/desktop-nav';
+import { MobileNav } from '@/components/navigation/mobile-nav';
+import { LogOut, User, Shield } from 'lucide-react';
 
 export default async function AuthenticatedLayout({
   children,
@@ -53,82 +44,7 @@ export default async function AuthenticatedLayout({
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 ml-6 border-l border-slate-200 pl-4">
-            <Link
-              href="/pos"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-teal-700 hover:bg-teal-800 shadow-2xs transition-colors mr-1"
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              POS / Sell
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Dashboard
-            </Link>
-
-            <Link
-              href="/shifts"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Shifts
-            </Link>
-
-            <Link
-              href="/inventory/medicines"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-            >
-              Medicines
-            </Link>
-
-            <Link
-              href="/inventory/batches"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-            >
-              Batches
-            </Link>
-
-            {isAdmin && (
-              <>
-                <Link
-                  href="/inventory/receive"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-                >
-                  Receive Stock
-                </Link>
-                <Link
-                  href="/inventory/suppliers"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-                >
-                  Suppliers
-                </Link>
-                <Link
-                  href="/inventory/movements"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-                >
-                  Stock Ledger
-                </Link>
-                <Link
-                  href="/admin/staff"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Staff
-                </Link>
-                <Link
-                  href="/admin/audit-logs"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-teal-900 hover:bg-slate-100 transition-colors"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Audit Trail
-                </Link>
-              </>
-            )}
-          </nav>
+          <DesktopNav profile={profile} />
         </div>
 
         {/* User Info & Actions */}
@@ -169,57 +85,7 @@ export default async function AuthenticatedLayout({
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden sticky bottom-0 z-30 bg-white border-t border-slate-200 px-2 py-2 flex items-center justify-around shadow-lg">
-        <Link
-          href="/dashboard"
-          className="flex flex-col items-center gap-1 text-[10px] font-medium text-slate-600 hover:text-teal-700 active:text-teal-800"
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          <span>Home</span>
-        </Link>
-
-        <Link
-          href="/shifts"
-          className="flex flex-col items-center gap-1 text-[10px] font-medium text-slate-600 hover:text-teal-700 active:text-teal-800"
-        >
-          <Clock className="w-4 h-4" />
-          <span>Shifts</span>
-        </Link>
-
-        {/* Central Prominent POS Sell Button */}
-        <Link
-          href="/pos"
-          className="flex flex-col items-center -mt-4"
-        >
-          <div className="w-12 h-12 rounded-full bg-teal-700 text-white flex items-center justify-center shadow-lg border-2 border-white hover:bg-teal-800 active:scale-95 transition-all">
-            <ShoppingCart className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] font-bold text-teal-900 mt-0.5">Sell</span>
-        </Link>
-
-        <Link
-          href="/inventory/medicines"
-          className="flex flex-col items-center gap-1 text-[10px] font-medium text-slate-600 hover:text-teal-700 active:text-teal-800"
-        >
-          <Activity className="w-4 h-4" />
-          <span>Medicines</span>
-        </Link>
-
-        {isAdmin ? (
-          <Link
-            href="/inventory/suppliers"
-            className="flex flex-col items-center gap-1 text-[10px] font-medium text-slate-600 hover:text-teal-700 active:text-teal-800"
-          >
-            <Building2 className="w-4 h-4" />
-            <span>Suppliers</span>
-          </Link>
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-[10px] font-medium text-slate-400">
-            <Shield className="w-4 h-4 text-slate-400" />
-            <span>Staff</span>
-          </div>
-        )}
-      </nav>
+      <MobileNav profile={profile} />
     </div>
   );
 }

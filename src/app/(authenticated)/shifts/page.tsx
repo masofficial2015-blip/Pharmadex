@@ -1,14 +1,14 @@
 import React from 'react';
 import { requireUser } from '@/lib/auth';
-import { getActiveShift, getShiftHistoryAction, getCashMovementsForShift, getShiftSalesAction } from '@/app/actions/shifts';
+import { getActiveShift, getShiftHistoryAction, getShiftSalesAction } from '@/app/actions/shifts';
 import { ShiftStatusBadge } from '@/components/shifts/shift-status-badge';
 import { ShiftHistoryTable } from '@/components/shifts/shift-history-table';
 import { ShiftSalesList } from '@/components/shifts/shift-sales-list';
-import { Clock, Calculator, Smartphone, Banknote, ShieldAlert, ArrowLeftRight } from 'lucide-react';
+import { Clock, Smartphone } from 'lucide-react';
 
 export const metadata = {
   title: 'Pharmacy Shifts & Cash Reconciliation | Pharmadex',
-  description: 'Manage active shifts, physical cash drawer reconciliation, and till movements',
+  description: 'Manage active shifts and physical cash drawer reconciliation',
 };
 
 export default async function ShiftsPage() {
@@ -18,10 +18,7 @@ export default async function ShiftsPage() {
     getShiftHistoryAction(),
   ]);
 
-  const [shiftSales, cashMovements] = await Promise.all([
-    getShiftSalesAction(activeShift?.shift.id),
-    activeShift ? getCashMovementsForShift(activeShift.shift.id) : Promise.resolve([]),
-  ]);
+  const shiftSales = await getShiftSalesAction(activeShift?.shift.id);
 
   return (
     <div className="space-y-6">
@@ -32,10 +29,10 @@ export default async function ShiftsPage() {
             <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
               <Clock className="w-4 h-4" />
             </div>
-            <h1 className="text-xl font-bold text-slate-900">Pharmacy Shifts & Till Reconciliation</h1>
+            <h1 className="text-xl font-bold text-slate-900">Pharmacy Shifts & Reconciliation</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Enforces a single active shift across the pharmacy. Physical cash drawer is strictly reconciled separately from mobile bank transfers.
+            Manage pharmacy shifts, active dispensing duty, and drawer cash reconciliation.
           </p>
         </div>
 
@@ -48,7 +45,7 @@ export default async function ShiftsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800">
-                Live Active Till Status
+                Active Shift Till
               </span>
               <h3 className="text-base font-extrabold text-slate-900">
                 Shift on duty: {activeShift.user.full_name}
@@ -63,7 +60,7 @@ export default async function ShiftsPage() {
           </div>
 
           {/* Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Opening Cash Float */}
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
               <span className="text-[11px] text-slate-500 block">Opening Cash Float</span>
@@ -79,14 +76,6 @@ export default async function ShiftsPage() {
               </span>
               <span className="font-mono font-bold text-base text-emerald-950">
                 +{activeShift.cash_sales_total.toLocaleString()} ETB
-              </span>
-            </div>
-
-            {/* Till In/Out Net */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-[11px] text-slate-500 block">Till In/Out Net</span>
-              <span className="font-mono font-bold text-base text-slate-900">
-                {(activeShift.cash_in_total - activeShift.cash_out_total).toLocaleString()} ETB
               </span>
             </div>
 
@@ -108,7 +97,7 @@ export default async function ShiftsPage() {
               <div>
                 <span className="font-bold">Digital Collections (Telebirr & CBE Birr):</span>
                 <span className="text-blue-700 block text-[11px]">
-                  Deposited directly to bank accounts; does not count toward physical cash drawer.
+                  Direct bank deposits (excluded from physical cash drawer).
                 </span>
               </div>
             </div>
@@ -116,35 +105,6 @@ export default async function ShiftsPage() {
               {activeShift.bank_sales_total.toLocaleString()} ETB
             </div>
           </div>
-
-          {/* Recent Till Movements */}
-          {cashMovements.length > 0 && (
-            <div className="pt-2 border-t border-slate-100">
-              <span className="text-xs font-bold text-slate-700 block mb-2">
-                Till Cash Movements This Shift:
-              </span>
-              <div className="space-y-1.5 text-xs font-mono">
-                {cashMovements.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100"
-                  >
-                    <span className="font-sans text-slate-700">
-                      <strong>{m.movement_type === 'PAY_IN' ? 'Pay In' : 'Pay Out'}:</strong> {m.reason}
-                    </span>
-                    <span
-                      className={`font-bold ${
-                        m.movement_type === 'PAY_IN' ? 'text-emerald-700' : 'text-amber-800'
-                      }`}
-                    >
-                      {m.movement_type === 'PAY_IN' ? '+' : '-'}
-                      {Number(m.amount).toLocaleString()} ETB
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

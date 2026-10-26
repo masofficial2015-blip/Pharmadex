@@ -13,10 +13,13 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Edit2,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatStockBreakdown } from '@/lib/utils/packaging';
+import { updateBatchPricingAction } from '@/app/actions/inventory';
 import type { BatchWithDetails } from '@/types';
 
 interface BatchTableProps {
@@ -26,9 +29,20 @@ interface BatchTableProps {
 const PAGE_SIZE = 25;
 
 export function BatchTable({ batches }: BatchTableProps) {
+  const [batchesState, setBatchesState] = useState<BatchWithDetails[]>(batches);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'ALL' | 'NEAR_EXPIRY' | 'EXPIRED' | 'AVAILABLE'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Quick Price Edit State
+  const [editingBatch, setEditingBatch] = useState<BatchWithDetails | null>(null);
+  const [newPackPrice, setNewPackPrice] = useState('');
+  const [newUnitPrice, setNewUnitPrice] = useState('');
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
+
+  useEffect(() => {
+    setBatchesState(batches);
+  }, [batches]);
 
   // React 19 deferred search query keeps mobile input typing fluid
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -38,9 +52,46 @@ export function BatchTable({ batches }: BatchTableProps) {
     setCurrentPage(1);
   }, [deferredSearchQuery, filterTab]);
 
+  function handleStartEditPrice(batch: BatchWithDetails) {
+    setEditingBatch(batch);
+    setNewPackPrice(batch.selling_price_per_pack ? batch.selling_price_per_pack.toString() : '');
+    setNewUnitPrice(batch.selling_price_per_unit ? batch.selling_price_per_unit.toString() : '');
+  }
+
+  async function handleSavePricing() {
+    if (!editingBatch) return;
+    const packPrice = parseFloat(newPackPrice) || 0;
+    const unitPrice = parseFloat(newUnitPrice) || 0;
+    setIsUpdatingPrice(true);
+
+    try {
+      const res = await updateBatchPricingAction(editingBatch.id, packPrice, unitPrice);
+      if (res.success) {
+        setBatchesState((prev) =>
+          prev.map((b) =>
+            b.id === editingBatch.id
+              ? {
+                  ...b,
+                  selling_price_per_pack: packPrice,
+                  selling_price_per_unit: unitPrice,
+                }
+              : b
+          )
+        );
+        setEditingBatch(null);
+      } else {
+        alert(res.error || 'Failed to update pricing');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating pricing');
+    } finally {
+      setIsUpdatingPrice(false);
+    }
+  }
+
   const filteredBatches = useMemo(() => {
     const q = deferredSearchQuery.toLowerCase().trim();
-    return batches.filter((b) => {
+    return batchesState.filter((b) => {
       const medName = b.medicine?.name?.toLowerCase() || '';
       const brandName = b.medicine?.brand_name?.toLowerCase() || '';
       const batchNum = b.batch_number.toLowerCase();
@@ -54,7 +105,7 @@ export function BatchTable({ batches }: BatchTableProps) {
 
       return true;
     });
-  }, [batches, deferredSearchQuery, filterTab]);
+  }, [batchesState, deferredSearchQuery, filterTab]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBatches.length / PAGE_SIZE));
   const paginatedBatches = useMemo(() => {
@@ -62,8 +113,8 @@ export function BatchTable({ batches }: BatchTableProps) {
     return filteredBatches.slice(start, start + PAGE_SIZE);
   }, [filteredBatches, currentPage]);
 
-  const nearExpiryCount = batches.filter((b) => b.is_near_expiry).length;
-  const expiredCount = batches.filter((b) => b.is_expired).length;
+  const nearExpiryCount = batchesState.filter((b) => b.is_near_expiry).length;
+  const expiredCount = batchesState.filter((b) => b.is_expired).length;
 
   return (
     <div className="space-y-6">
@@ -289,11 +340,28 @@ export function BatchTable({ batches }: BatchTableProps) {
 
                       {/* Selling Price */}
                       <td className="py-4 px-4">
-                        <div className="text-xs text-slate-900 font-semibold">
-                          {b.selling_price_per_pack} ETB / {packLabel}
-                        </div>
-                        <div className="text-[11px] text-teal-700 font-medium mt-0.5">
-                          {b.selling_price_per_unit} ETB / {baseUnit}
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs text-slate-900 font-semibold">
+                              {b.selling_price_per_pack} ETB / {packLabel}
+                            </div>
+                            <div className="text-[11px] text-teal-700 font-medium mt-0.5">
+                              {b.selling_price_per_unit} ETB / {baseUnit}
+                            </div>
+                            {Number(b.selling_price_per_pack) === 0 && (
+                              <span className="inline-block px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px] font-medium mt-0.5">
+                                Price not set
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditPrice(b)}
+                            className="p-1.5 text-slate-400 hover:text-teal-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                            title="Edit Selling Price"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
 
@@ -363,6 +431,89 @@ export function BatchTable({ batches }: BatchTableProps) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Quick Edit Price Modal */}
+      {editingBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">Update Selling Price</h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingBatch.medicine?.name} ({editingBatch.medicine?.strength}) • Batch #{editingBatch.batch_number}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBatch(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Selling Price per {editingBatch.medicine?.pack_label || 'Pack'} (ETB)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newPackPrice}
+                  onChange={(e) => {
+                    const p = e.target.value;
+                    setNewPackPrice(p);
+                    const units = editingBatch.medicine?.units_per_pack || 1;
+                    if (parseFloat(p) > 0 && units > 0) {
+                      setNewUnitPrice((parseFloat(p) / units).toFixed(2));
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold"
+                  placeholder="e.g. 150.00"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Selling Price per {editingBatch.medicine?.base_unit || 'Unit'} (ETB)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newUnitPrice}
+                  onChange={(e) => setNewUnitPrice(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  placeholder="e.g. 1.50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingBatch(null)}
+                disabled={isUpdatingPrice}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSavePricing}
+                disabled={isUpdatingPrice || !newPackPrice}
+                className="bg-teal-700 hover:bg-teal-800 text-white"
+              >
+                {isUpdatingPrice ? 'Saving...' : 'Save Price'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

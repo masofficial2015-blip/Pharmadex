@@ -11,7 +11,7 @@ export const metadata = {
 
 export default async function MedicinesPage() {
   const { profile } = await requireUser();
-  const isAdmin = profile.role === 'ADMIN';
+  const canManage = profile.role === 'ADMIN' || profile.permissions?.includes('manage_medicines');
   const medicines = await getMedicinesWithInventory();
 
   return (
@@ -30,7 +30,7 @@ export default async function MedicinesPage() {
         </div>
       </div>
 
-      <MedicineList initialMedicines={medicines} isAdmin={isAdmin} />
+      <MedicineList initialMedicines={medicines} isAdmin={Boolean(canManage)} />
     </div>
   );
 }

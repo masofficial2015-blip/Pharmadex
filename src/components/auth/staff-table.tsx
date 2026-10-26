@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreateStaffModal } from './create-staff-modal';
 import { ResetPasswordModal } from './reset-password-modal';
+import { EditPermissionsModal } from './edit-permissions-modal';
 import { toggleStaffStatusAction } from '@/app/actions/staff';
 import { formatDate } from '@/lib/utils';
-import { UserPlus, UserCheck, UserX, KeyRound, Shield, AlertCircle, Phone, Calendar } from 'lucide-react';
+import { UserPlus, UserCheck, UserX, KeyRound, Shield, AlertCircle, Phone, Calendar, ShieldCheck } from 'lucide-react';
 import type { Profile } from '@/types';
 
 interface StaffTableProps {
@@ -19,6 +20,7 @@ interface StaffTableProps {
 export function StaffTable({ currentUserId, staffList }: StaffTableProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedStaffForReset, setSelectedStaffForReset] = useState<Profile | null>(null);
+  const [selectedStaffForPermissions, setSelectedStaffForPermissions] = useState<Profile | null>(null);
   const [loadingStaffId, setLoadingStaffId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -166,10 +168,43 @@ export function StaffTable({ currentUserId, staffList }: StaffTableProps) {
                           Joined {formatDate(pharmacist.created_at)}
                         </span>
                       </div>
+
+                      {/* Privileged Permissions Badges */}
+                      {pharmacist.permissions && pharmacist.permissions.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-slate-400 font-medium mr-1">Privileges:</span>
+                          {pharmacist.permissions.map((p) => (
+                            <span
+                              key={p}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 capitalize"
+                            >
+                              <ShieldCheck className="w-2.5 h-2.5 text-teal-700" />
+                              {p.replace('_', ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 pt-0.5">
+                          Standard access (POS sales & personal shifts)
+                        </p>
+                      )}
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 self-end sm:self-auto pt-2 sm:pt-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedStaffForPermissions(pharmacist)}
+                        disabled={isItemLoading}
+                        className="text-xs h-9 px-2.5 text-teal-800 border-teal-200 hover:bg-teal-50"
+                        title="Manage Privileged Access Rights"
+                      >
+                        <Shield className="w-3.5 h-3.5 mr-1 text-teal-700" />
+                        Permissions
+                      </Button>
+
                       <Button
                         type="button"
                         variant="outline"
@@ -224,6 +259,12 @@ export function StaffTable({ currentUserId, staffList }: StaffTableProps) {
         staff={selectedStaffForReset}
         isOpen={Boolean(selectedStaffForReset)}
         onClose={() => setSelectedStaffForReset(null)}
+      />
+      <EditPermissionsModal
+        pharmacist={selectedStaffForPermissions}
+        isOpen={Boolean(selectedStaffForPermissions)}
+        onClose={() => setSelectedStaffForPermissions(null)}
+        onSuccess={() => window.location.reload()}
       />
     </div>
   );
