@@ -23,11 +23,25 @@ export function QuantityConfigModal({
 }: QuantityConfigModalProps) {
   const [packQty, setPackQty] = useState<number>(0);
   const [looseQty, setLooseQty] = useState<number>(0);
+  const [enteredUnitPrice, setEnteredUnitPrice] = useState<string>('');
+  const [enteredPackPrice, setEnteredPackPrice] = useState<string>('');
+
+  const unitsPerPack = medicine?.units_per_pack || 1;
+  const isUnpriced = (medicine?.unit_price ?? 0) <= 0;
 
   useEffect(() => {
     if (existingCartItem) {
       setPackQty(existingCartItem.pack_quantity);
       setLooseQty(existingCartItem.loose_quantity);
+      if (existingCartItem.custom_unit_price) {
+        setEnteredUnitPrice(existingCartItem.custom_unit_price.toString());
+        setEnteredPackPrice(
+          (existingCartItem.custom_unit_price * (medicine?.units_per_pack || 1)).toFixed(2)
+        );
+      } else {
+        setEnteredUnitPrice('');
+        setEnteredPackPrice('');
+      }
     } else {
       // Default to 1 pack if available, otherwise 1 loose unit
       if (medicine && medicine.available_packs > 0) {
@@ -37,12 +51,13 @@ export function QuantityConfigModal({
         setPackQty(0);
         setLooseQty(1);
       }
+      setEnteredUnitPrice('');
+      setEnteredPackPrice('');
     }
   }, [existingCartItem, medicine, isOpen]);
 
   if (!isOpen || !medicine) return null;
 
-  const unitsPerPack = medicine.units_per_pack || 1;
   const packLabel = medicine.pack_label || 'Pack';
   const baseUnit = medicine.base_unit || 'unit';
 
@@ -50,10 +65,39 @@ export function QuantityConfigModal({
   const isOutOfStock = medicine.total_available_units <= 0;
   const exceedsStock = totalRequestedUnits > medicine.total_available_units;
 
+  // Determine effective pricing
+  const customUnitPriceNum = parseFloat(enteredUnitPrice) || 0;
+  const effectiveUnitPrice = isUnpriced ? customUnitPriceNum : medicine.unit_price;
+  const effectivePackPrice = isUnpriced
+    ? Number((effectiveUnitPrice * unitsPerPack).toFixed(2))
+    : medicine.pack_price;
+
+  const isPriceMissing = isUnpriced && effectiveUnitPrice <= 0;
+
   // Subtotal calculation
   const subtotal = Number(
-    (packQty * medicine.pack_price + looseQty * medicine.unit_price).toFixed(2)
+    (packQty * effectivePackPrice + looseQty * effectiveUnitPrice).toFixed(2)
   );
+
+  function handleUnitPriceChange(valStr: string) {
+    setEnteredUnitPrice(valStr);
+    const num = parseFloat(valStr);
+    if (!isNaN(num) && num >= 0) {
+      setEnteredPackPrice((num * unitsPerPack).toFixed(2));
+    } else {
+      setEnteredPackPrice('');
+    }
+  }
+
+  function handlePackPriceChange(valStr: string) {
+    setEnteredPackPrice(valStr);
+    const num = parseFloat(valStr);
+    if (!isNaN(num) && num >= 0) {
+      setEnteredUnitPrice((num / unitsPerPack).toFixed(2));
+    } else {
+      setEnteredUnitPrice('');
+    }
+  }
 
   function handleAddPacks(delta: number) {
     const nextPacks = Math.max(0, packQty + delta);
@@ -80,7 +124,7 @@ export function QuantityConfigModal({
   }
 
   function handleSave() {
-    if (!medicine || totalRequestedUnits <= 0 || exceedsStock) return;
+    if (!medicine || totalRequestedUnits <= 0 || exceedsStock || isPriceMissing) return;
 
     onConfirm({
       medicine,
@@ -88,6 +132,7 @@ export function QuantityConfigModal({
       loose_quantity: looseQty,
       total_units: totalRequestedUnits,
       subtotal,
+      custom_unit_price: isUnpriced ? effectiveUnitPrice : undefined,
     });
     onClose();
   }
@@ -150,6 +195,69 @@ export function QuantityConfigModal({
             )}
           </div>
 
+          {/* Unpriced Medicine Alert & In-line Price Inputs */}
+          {isUnpriced && (
+            <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900">
+                    Selling Price Missing (0.00 ETB)
+                  </h4>
+                  <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                    Please enter the selling price below to complete this sale. This price will be permanently saved to the inventory for all future sales.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Loose Unit Price ({baseUnit}) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={enteredUnitPrice}
+                      onChange={(e) => handleUnitPriceChange(e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full h-10 px-3 pr-12 text-sm font-bold bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 shadow-2xs"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                      ETB
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Full Pack Price ({packLabel}) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={enteredPackPrice}
+                      onChange={(e) => handlePackPriceChange(e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full h-10 px-3 pr-12 text-sm font-bold bg-white border border-amber-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 shadow-2xs"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                      ETB
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Stepper 1: Full Packs (Boxes) */}
           <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -158,11 +266,11 @@ export function QuantityConfigModal({
                   Full {packLabel}s
                 </span>
                 <span className="text-[11px] text-slate-500 font-mono block">
-                  {medicine.pack_price.toLocaleString()} ETB / {packLabel}
+                  {effectivePackPrice.toLocaleString()} ETB / {packLabel}
                 </span>
-                {medicine.pack_price === 0 && (
+                {isUnpriced && (
                   <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium mt-0.5 inline-block">
-                    Initial untracked price (0.00 ETB)
+                    {effectivePackPrice > 0 ? 'Custom price set' : 'Needs price entry'}
                   </span>
                 )}
               </div>
@@ -186,6 +294,8 @@ export function QuantityConfigModal({
                     const val = parseInt(e.target.value) || 0;
                     setPackQty(Math.max(0, val));
                   }}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   className="w-16 h-10 text-center font-bold text-base bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
                 />
 
@@ -231,7 +341,7 @@ export function QuantityConfigModal({
                   Loose {baseUnit}s
                 </span>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  {medicine.unit_price.toLocaleString()} ETB / {baseUnit}
+                  {effectiveUnitPrice.toLocaleString()} ETB / {baseUnit}
                 </span>
               </div>
 
@@ -254,6 +364,8 @@ export function QuantityConfigModal({
                     const val = parseInt(e.target.value) || 0;
                     setLooseQty(Math.max(0, val));
                   }}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   className="w-16 h-10 text-center font-bold text-base bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
                 />
 
@@ -330,11 +442,13 @@ export function QuantityConfigModal({
             type="button"
             variant="primary"
             onClick={handleSave}
-            disabled={totalRequestedUnits <= 0 || exceedsStock || isOutOfStock}
-            className="w-2/3 h-12 text-sm font-bold shadow-md bg-teal-700 hover:bg-teal-800"
+            disabled={totalRequestedUnits <= 0 || exceedsStock || isOutOfStock || isPriceMissing}
+            className="w-2/3 h-12 text-sm font-bold shadow-md bg-teal-700 hover:bg-teal-800 disabled:opacity-50"
           >
             <Check className="w-4 h-4 mr-1.5" />
-            Add to Cart • {subtotal.toLocaleString()} ETB
+            {isPriceMissing
+              ? 'Enter Price to Add'
+              : `Add to Cart • ${subtotal.toLocaleString()} ETB`}
           </Button>
         </div>
       </div>

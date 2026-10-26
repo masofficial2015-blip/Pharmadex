@@ -5,12 +5,27 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   label?: string;
   error?: string;
   helperText?: string;
+  autoSelectOnFocus?: boolean;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', label, error, helperText, id, disabled, ...props }, ref) => {
+  ({ className, type = 'text', label, error, helperText, id, disabled, autoSelectOnFocus, onFocus, onClick, ...props }, ref) => {
     const generatedId = React.useId();
     const inputId = id || generatedId;
+
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+      if (type === 'number' || autoSelectOnFocus) {
+        e.currentTarget.select();
+      }
+      onFocus?.(e);
+    };
+
+    const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+      if (type === 'number' || autoSelectOnFocus) {
+        e.currentTarget.select();
+      }
+      onClick?.(e);
+    };
 
     return (
       <div className="w-full space-y-1.5">
@@ -24,6 +39,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           type={type}
           ref={ref}
           disabled={disabled}
+          onFocus={handleFocus}
+          onClick={handleClick}
           className={cn(
             'w-full h-11 px-3.5 rounded-lg border bg-white text-slate-900 text-sm transition-all outline-none',
             'focus:ring-2 focus:ring-teal-700 focus:border-teal-700',

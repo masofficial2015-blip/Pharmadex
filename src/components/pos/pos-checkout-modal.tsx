@@ -57,6 +57,7 @@ export function PosCheckoutModal({
         medicine_id: item.medicine.id,
         pack_quantity: item.pack_quantity,
         loose_quantity: item.loose_quantity,
+        custom_unit_price: item.custom_unit_price,
       })),
     };
 

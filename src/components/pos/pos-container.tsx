@@ -45,6 +45,26 @@ export function PosContainer({ initialMedicines, activeShift }: PosContainerProp
   const [cart, setCart] = useState<CartItem[]>([]);
   const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
 
+  // Dynamically derive available dosage forms/categories from available medicines
+  const availableCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    medicines.forEach((m) => {
+      const form = m.dosage_form?.trim();
+      if (form) {
+        counts.set(form, (counts.get(form) || 0) + 1);
+      }
+    });
+
+    const sortedForms = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([form, count]) => ({ form, label: form, count }));
+
+    return [
+      { form: 'ALL', label: 'All Medicines', count: medicines.length },
+      ...sortedForms,
+    ];
+  }, [medicines]);
+
   // Memoized O(1) Cart Quantity Map to avoid O(N*M) lookup in the rendering loop
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
@@ -154,22 +174,30 @@ export function PosContainer({ initialMedicines, activeShift }: PosContainerProp
 
         {/* Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          {['ALL', 'Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Cream', 'Drops'].map(
-            (form) => (
+          {availableCategories.map(({ form, label, count }) => {
+            const isActive = filterForm === form;
+            return (
               <button
                 key={form}
                 type="button"
                 onClick={() => setFilterForm(form)}
-                className={`px-3 py-1.5 rounded-xl font-medium transition-colors whitespace-nowrap ${
-                  filterForm === form
-                    ? 'bg-slate-900 text-white'
+                className={`px-3 py-1.5 rounded-xl font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-2xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {form === 'ALL' ? 'All Medicines' : form}
+                <span>{label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${
+                    isActive ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
-            )
-          )}
+            );
+          })}
         </div>
       </div>
 

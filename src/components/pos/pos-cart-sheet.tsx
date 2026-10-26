@@ -86,8 +86,15 @@ export function PosCartSheet({
                     </span>
                   </div>
 
-                  <div className="font-mono font-bold text-sm text-slate-900 mt-1">
-                    {item.subtotal.toLocaleString()} ETB
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-mono font-bold text-sm text-slate-900">
+                      {item.subtotal.toLocaleString()} ETB
+                    </span>
+                    {item.custom_unit_price !== undefined && (
+                      <span className="text-[10px] text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 font-semibold">
+                        Custom: {item.custom_unit_price} ETB/{item.medicine.base_unit}
+                      </span>
+                    )}
                   </div>
                 </div>
 

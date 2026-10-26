@@ -179,6 +179,8 @@ export function CloseShiftModal({
                 placeholder="Enter exact counted cash..."
                 value={actualCash}
                 onChange={(e) => setActualCash(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onClick={(e) => e.currentTarget.select()}
                 className="w-full pl-10 pr-14 py-3 bg-white border-2 border-slate-300 rounded-xl text-base font-bold text-slate-900 focus:outline-hidden focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 transition-all"
                 required
                 autoFocus

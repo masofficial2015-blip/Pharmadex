@@ -92,6 +92,7 @@ export interface CartItem {
   loose_quantity: number;
   total_units: number;
   subtotal: number;
+  custom_unit_price?: number;
 }
 
 export interface SaleReceiptItem {

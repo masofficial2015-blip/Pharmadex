@@ -472,6 +472,8 @@ export function BatchTable({ batches }: BatchTableProps) {
                       setNewUnitPrice((parseFloat(p) / units).toFixed(2));
                     }
                   }}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold"
                   placeholder="e.g. 150.00"
                   autoFocus
@@ -488,6 +490,8 @@ export function BatchTable({ batches }: BatchTableProps) {
                   min="0"
                   value={newUnitPrice}
                   onChange={(e) => setNewUnitPrice(e.target.value)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
                   placeholder="e.g. 1.50"
                 />

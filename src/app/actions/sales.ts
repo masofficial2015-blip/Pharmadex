@@ -147,6 +147,7 @@ export async function recordSaleAction(
     packQuantity: number;
     looseQuantity: number;
     totalUnitsRequested: number;
+    customUnitPrice?: number;
     allocatedBatches: Array<{
       batch: Batch;
       unitsToDeduct: number;
@@ -207,7 +208,11 @@ export async function recordSaleAction(
       const batchStock = Number(batch.current_quantity_units || 0);
       const unitsFromThisBatch = Math.min(remainingToDeduct, batchStock);
 
-      const unitPrice = Number(batch.selling_price_per_unit || (Number(batch.selling_price_per_pack) / unitsPerPack));
+      const existingUnitPrice = Number(batch.selling_price_per_unit || (Number(batch.selling_price_per_pack) / unitsPerPack));
+      const unitPrice = (item.custom_unit_price && (existingUnitPrice <= 0 || item.custom_unit_price > 0))
+        ? Number(item.custom_unit_price)
+        : existingUnitPrice;
+
       const subtotal = Number((unitsFromThisBatch * unitPrice).toFixed(2));
 
       allocatedBatches.push({
@@ -226,6 +231,7 @@ export async function recordSaleAction(
       packQuantity: item.pack_quantity,
       looseQuantity: item.loose_quantity,
       totalUnitsRequested: requestedUnits,
+      customUnitPrice: item.custom_unit_price,
       allocatedBatches,
     });
   }
@@ -291,16 +297,42 @@ export async function recordSaleAction(
         .select('id')
         .single();
 
-      // b. Decrement current_quantity_units on batch
+      // b. Decrement current_quantity_units on batch, and update missing prices if custom_unit_price is provided
       const previousQty = Number(alloc.batch.current_quantity_units || 0);
       const newQty = previousQty - alloc.unitsToDeduct;
 
+      const batchUpdateData: Record<string, unknown> = {
+        current_quantity_units: newQty,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (
+        plan.customUnitPrice &&
+        plan.customUnitPrice > 0 &&
+        (!alloc.batch.selling_price_per_unit || Number(alloc.batch.selling_price_per_unit) <= 0)
+      ) {
+        const unitsPerPack = plan.medicine.units_per_pack || 1;
+        batchUpdateData.selling_price_per_unit = plan.customUnitPrice;
+        batchUpdateData.selling_price_per_pack = Number((plan.customUnitPrice * unitsPerPack).toFixed(2));
+      }
+
       await (adminSupabase.from('batches') as any)
-        .update({
-          current_quantity_units: newQty,
-          updated_at: new Date().toISOString(),
-        })
+        .update(batchUpdateData)
         .eq('id', alloc.batch.id);
+
+      // If customUnitPrice was provided, also populate all unpriced batches of this medicine across inventory
+      if (plan.customUnitPrice && plan.customUnitPrice > 0) {
+        const unitsPerPack = plan.medicine.units_per_pack || 1;
+        const newPackPrice = Number((plan.customUnitPrice * unitsPerPack).toFixed(2));
+        await (adminSupabase.from('batches') as any)
+          .update({
+            selling_price_per_unit: plan.customUnitPrice,
+            selling_price_per_pack: newPackPrice,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('medicine_id', plan.medicine.id)
+          .lte('selling_price_per_unit', 0);
+      }
 
       // c. Log immutable audit movement in stock_movements ledger
       await (adminSupabase.from('stock_movements') as any).insert({
