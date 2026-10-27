@@ -32,7 +32,7 @@ export function CloseShiftModal({
   if (!isOpen) return null;
 
   const openedDate = new Date(shiftSummary.shift.opened_at);
-  const openedTimeStr = openedDate.toLocaleTimeString('en-US', {
+  const openedTimeStr = openedDate.toLocaleString('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });

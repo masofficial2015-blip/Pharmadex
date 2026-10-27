@@ -58,7 +58,7 @@ export default async function ShiftsPage() {
               </div>
               <p className="text-xs text-slate-500 mt-0.5 font-mono">
                 Shift started:{' '}
-                {new Date(activeShift.shift.opened_at).toLocaleTimeString('en-US', {
+                {new Date(activeShift.shift.opened_at).toLocaleString('en-US', {
                   dateStyle: 'medium',
                   timeStyle: 'short',
                 })}

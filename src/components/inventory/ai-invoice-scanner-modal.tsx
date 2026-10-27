@@ -234,7 +234,7 @@ export function AiInvoiceScannerModal({
                       Receive Stock with Gemini AI
                     </h2>
                     <span className="text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">
-                      Gemini 2.5 Flash
+                      Gemini Vision AI
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
@@ -378,6 +378,36 @@ export function AiInvoiceScannerModal({
               {/* Step 2: Interactive Review & Manual Override Phase */}
               {scanResult && (
                 <div className="space-y-5">
+                  {/* Extraction Status Report Banner */}
+                  {scanResult.status_message && (
+                    <div
+                      className={`p-4 rounded-2xl border flex items-start gap-3 text-xs ${
+                        (scanResult.unmatched_count || 0) > 0
+                          ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      }`}
+                    >
+                      {(scanResult.unmatched_count || 0) > 0 ? (
+                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      )}
+                      <div className="space-y-0.5">
+                        <p className="font-bold text-sm">
+                          {(scanResult.unmatched_count || 0) > 0
+                            ? 'Invoice Extracted — Review & Complete Matching'
+                            : 'Invoice Successfully Extracted & Catalog Matched'}
+                        </p>
+                        <p className="leading-relaxed">{scanResult.status_message}</p>
+                        {scanResult.model_used && (
+                          <p className="text-[10px] text-slate-500 font-mono mt-1">
+                            Processed using: <span className="font-semibold text-slate-700">{scanResult.model_used}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Extracted Header Metadata */}
                   <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

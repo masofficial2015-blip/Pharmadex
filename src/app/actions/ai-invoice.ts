@@ -28,6 +28,10 @@ export interface ExtractedInvoiceItem {
 export interface InvoiceScanResult {
   success: boolean;
   error?: string;
+  status_message?: string;
+  matched_count?: number;
+  unmatched_count?: number;
+  model_used?: string;
   supplier_name?: string;
   supplier_phone?: string;
   matched_supplier_id?: string | null;
@@ -38,7 +42,8 @@ export interface InvoiceScanResult {
 }
 
 /**
- * Scan an uploaded pharmaceutical invoice image using Gemini 2.5 Flash Vision.
+ * Scan an uploaded pharmaceutical invoice image using Gemini Vision models.
+ * Automatically tries gemini-3.8-flash with fallbacks if a model is unavailable.
  */
 export async function scanInvoiceWithGeminiAction(
   formData: FormData
@@ -62,7 +67,7 @@ export async function scanInvoiceWithGeminiAction(
       return {
         success: false,
         error:
-          'Gemini API Key is not configured. Please provide an API key or set GEMINI_API_KEY in .env.local.',
+          'Gemini API Key is not configured. Please enter your API key in the configuration field or add GEMINI_API_KEY in .env.local.',
         items: [],
       };
     }
@@ -111,56 +116,89 @@ Return ONLY valid JSON with this exact structure:
   ]
 }`;
 
-    // Call Gemini 2.5 Flash API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
+    // Candidate models in preference order (starting with gemini-3.8-flash)
+    const CANDIDATE_MODELS = [
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro',
+    ];
+
+    let apiResult: any = null;
+    let candidateText = '';
+    let successfulModel = '';
+    let lastErrorDetails = '';
+
+    for (const model of CANDIDATE_MODELS) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
                 {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64Data,
-                  },
+                  parts: [
+                    { text: prompt },
+                    {
+                      inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data,
+                      },
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.1,
-          },
-        }),
-      }
-    );
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+              },
+            }),
+          }
+        );
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Gemini API Error:', errText);
+        if (response.ok) {
+          apiResult = await response.json();
+          candidateText = apiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (candidateText && candidateText.trim()) {
+            successfulModel = model;
+            break;
+          }
+        } else {
+          const errText = await response.text();
+          let parsedErrMsg = errText;
+          try {
+            const errObj = JSON.parse(errText);
+            parsedErrMsg = errObj?.error?.message || errText;
+          } catch {}
+          lastErrorDetails = `Model ${model} (${response.status}): ${parsedErrMsg}`;
+          console.warn(`[Gemini Invoice Scan] Model ${model} failed, trying next fallback:`, parsedErrMsg);
+        }
+      } catch (err: any) {
+        lastErrorDetails = err.message || 'Network request failed';
+      }
+    }
+
+    if (!candidateText) {
       return {
         success: false,
-        error: `Gemini API returned error (${response.status}): ${errText.slice(0, 150)}`,
+        error: `Could not connect to Gemini models. ${lastErrorDetails || 'Please check your API key and network connection.'}`,
         items: [],
       };
     }
 
-    const apiResult = await response.json();
-    const candidateText =
-      apiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
     let parsedData: any;
     try {
-      parsedData = JSON.parse(candidateText);
+      // Clean potential markdown blocks
+      const cleanJson = candidateText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      parsedData = JSON.parse(cleanJson);
     } catch (parseErr) {
       console.error('Failed to parse Gemini response as JSON:', candidateText);
       return {
         success: false,
-        error: 'Failed to parse invoice structure from Gemini response.',
+        error: 'Failed to extract structured text from the invoice image. Please verify image clarity and contrast.',
         items: [],
       };
     }
@@ -183,6 +221,14 @@ Return ONLY valid JSON with this exact structure:
 
     // Process and match extracted items against active medicines catalog
     const rawItems: any[] = Array.isArray(parsedData.items) ? parsedData.items : [];
+    if (rawItems.length === 0) {
+      return {
+        success: false,
+        error: 'No medicine line items could be detected in this invoice. Please ensure the invoice table with medicines, quantities, and prices is clearly visible.',
+        items: [],
+      };
+    }
+
     const items: ExtractedInvoiceItem[] = rawItems.map((item, index) => {
       const rawDesc = String(item.raw_description || '').trim();
       const normDesc = rawDesc.toLowerCase();
@@ -223,7 +269,6 @@ Return ONLY valid JSON with this exact structure:
       let sellingPack = 0;
       let sellingUnit = 0;
       if (costPerPack > 0) {
-        // Suggest a standard retail markup (e.g. 20-25%) if no previous price exists
         const markup = 1.25;
         sellingPack = Number((costPerPack * markup).toFixed(2));
         sellingUnit = unitsPerPack > 0 ? Number((sellingPack / unitsPerPack).toFixed(2)) : sellingPack;
@@ -258,8 +303,22 @@ Return ONLY valid JSON with this exact structure:
       };
     });
 
+    const matchedCount = items.filter((i) => i.matched_medicine_id !== null).length;
+    const unmatchedCount = items.length - matchedCount;
+
+    let statusMessage = `Extracted ${items.length} line item(s) from invoice #${parsedData.invoice_number || 'N/A'}.`;
+    if (unmatchedCount === 0) {
+      statusMessage += ` All ${items.length} item(s) auto-matched to active catalog.`;
+    } else {
+      statusMessage += ` ${matchedCount} auto-matched; ${unmatchedCount} item(s) need manual medicine mapping.`;
+    }
+
     return {
       success: true,
+      status_message: statusMessage,
+      matched_count: matchedCount,
+      unmatched_count: unmatchedCount,
+      model_used: successfulModel,
       supplier_name: extractedSupplierName,
       supplier_phone: extractedSupplierPhone,
       matched_supplier_id: matchedSupplierId,
