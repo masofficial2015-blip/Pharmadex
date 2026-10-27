@@ -23,7 +23,7 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-          Closed Shifts & Reconciliation Ledger
+          Shift History & Handover Records
         </h3>
         <input
           type="text"
@@ -46,10 +46,7 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
                 <tr>
                   <th className="py-3 px-4">Pharmacist</th>
                   <th className="py-3 px-4">Shift Duration</th>
-                  <th className="py-3 px-4 text-right">Opening Float</th>
-                  <th className="py-3 px-4 text-right">Expected Till</th>
-                  <th className="py-3 px-4 text-right">Counted Cash</th>
-                  <th className="py-3 px-4 text-right">Discrepancy</th>
+                  <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Handover Notes</th>
                 </tr>
               </thead>
@@ -78,10 +75,6 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
                     durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
                   }
 
-                  const expected = Number(shift.expected_closing_cash || 0);
-                  const actual = Number(shift.actual_closing_cash || 0);
-                  const discrepancy = Number(shift.cash_discrepancy || 0);
-
                   return (
                     <tr key={shift.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3.5 px-4 font-sans font-semibold text-slate-900">
@@ -107,34 +100,16 @@ export function ShiftHistoryTable({ shifts }: ShiftHistoryTableProps) {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right text-slate-700">
-                        {Number(shift.opening_cash).toLocaleString()} ETB
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-900">
-                        {expected.toLocaleString()} ETB
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-900">
-                        {actual.toLocaleString()} ETB
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-sans">
-                        {discrepancy === 0 ? (
-                          <Badge variant="success">Exact (0.00)</Badge>
-                        ) : discrepancy > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                            +{discrepancy.toLocaleString()} ETB
-                          </span>
+                      <td className="py-3.5 px-4 font-sans">
+                        {closedDate ? (
+                          <Badge variant="neutral">Closed</Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                            {discrepancy.toLocaleString()} ETB
-                          </span>
+                          <Badge variant="success">Active</Badge>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 font-sans text-slate-600 max-w-xs truncate" title={shift.closing_notes || ''}>
-                        {shift.closing_notes || '—'}
+                      <td className="py-3.5 px-4 font-sans text-slate-600 max-w-sm" title={shift.closing_notes || ''}>
+                        {shift.closing_notes || <span className="text-slate-400 font-mono italic">No notes</span>}
                       </td>
                     </tr>
                   );

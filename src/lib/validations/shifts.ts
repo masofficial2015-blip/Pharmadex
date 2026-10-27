@@ -22,10 +22,8 @@ export const cashMovementSchema = z.object({
 export type CashMovementFormValues = z.infer<typeof cashMovementSchema>;
 
 export const closeShiftSchema = z.object({
-  actual_closing_cash: z.coerce
-    .number({ invalid_type_error: 'Actual closing cash must be a valid number' })
-    .min(0, 'Counted cash cannot be negative'),
   closing_notes: z.string().trim().optional().or(z.literal('')),
 });
 
 export type CloseShiftFormValues = z.infer<typeof closeShiftSchema>;
+

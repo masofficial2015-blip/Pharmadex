@@ -24,6 +24,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { receiveStockAction, type InventoryActionResponse } from '@/app/actions/inventory';
 import { formatStockBreakdown, formatPackagingFormula } from '@/lib/utils/packaging';
+import { AiInvoiceScannerModal } from './ai-invoice-scanner-modal';
+import type { ExtractedInvoiceItem } from '@/app/actions/ai-invoice';
 import type { MedicineInventorySummary, SupplierWithBalance } from '@/types';
 
 interface StockReceiveFormProps {
@@ -32,6 +34,7 @@ interface StockReceiveFormProps {
 }
 
 export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps) {
+  const [isAiScannerOpen, setIsAiScannerOpen] = useState(false);
   const [selectedMedicineId, setSelectedMedicineId] = useState<string>(
     medicines.length > 0 ? medicines[0].id : ''
   );
@@ -118,6 +121,31 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
 
   const remainingBalance = Math.max(0, Number((totalCost - effectiveAmountPaid).toFixed(2)));
 
+  // Apply a single item extracted from Gemini AI
+  function handleApplySingleItem(item: ExtractedInvoiceItem, supplierId: string, invNum: string) {
+    if (item.matched_medicine_id) {
+      setSelectedMedicineId(item.matched_medicine_id);
+    }
+    if (supplierId) {
+      setSelectedSupplierId(supplierId);
+    }
+    if (item.batch_number) {
+      setBatchNumber(item.batch_number);
+    }
+    if (item.expiry_date) {
+      setExpiryDate(item.expiry_date);
+    }
+    setPacks(item.quantity || 1);
+    setLooseUnits(0);
+    setCostPerPack(item.cost_per_pack || 0);
+    setSellingPricePerPack(item.selling_price_per_pack || 0);
+    setSellingPricePerUnit(item.selling_price_per_unit || 0);
+    if (invNum) {
+      setInvoiceNumber(invNum);
+    }
+    setSuccessMessage(`Loaded "${item.raw_description}" from invoice into form. Verify and submit.`);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -165,6 +193,37 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Fast Receive with Gemini AI Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-teal-50 via-teal-100/30 to-slate-50 border border-teal-200/80 rounded-2xl shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs shrink-0">
+            <Sparkles className="w-5 h-5 text-teal-100" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-slate-900">
+                Fast Stock Receiving with Gemini AI
+              </h3>
+              <span className="text-[10px] font-bold bg-teal-100 text-teal-900 border border-teal-200 px-1.5 py-0.2 rounded-full">
+                AI Vision
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Upload or snap a wholesale paper invoice to auto-extract items, batches, and costs.
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setIsAiScannerOpen(true)}
+          className="font-bold text-xs bg-white text-teal-800 border-teal-300 hover:bg-teal-50 gap-1.5 shadow-2xs shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+          Scan Invoice with AI
+        </Button>
+      </div>
+
       {/* Alert Messages */}
       {generalError && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-sm">
@@ -675,6 +734,18 @@ export function StockReceiveForm({ medicines, suppliers }: StockReceiveFormProps
           Receive Stock & Update Inventory
         </Button>
       </div>
+
+      {/* AI Invoice Scanner Modal */}
+      <AiInvoiceScannerModal
+        isOpen={isAiScannerOpen}
+        onClose={() => setIsAiScannerOpen(false)}
+        medicines={medicines}
+        suppliers={suppliers}
+        onApplySingleItem={handleApplySingleItem}
+        onSuccess={() => {
+          setSuccessMessage('AI batch stock receiving completed successfully.');
+        }}
+      />
     </form>
   );
 }

@@ -294,7 +294,6 @@ export async function closeShiftAction(
   }
 
   const raw = {
-    actual_closing_cash: formData.get('actual_closing_cash'),
     closing_notes: formData.get('closing_notes') || '',
   };
 
@@ -306,19 +305,17 @@ export async function closeShiftAction(
         fieldErrors[err.path[0].toString()] = err.message;
       }
     });
-    return { error: 'Please enter the counted physical cash in the till.', fieldErrors };
+    return { error: 'Please correct any notes input errors.', fieldErrors };
   }
 
-  const { actual_closing_cash, closing_notes } = parsed.data;
-  const expected_closing_cash = active.expected_closing_cash;
-  const cash_discrepancy = Number((actual_closing_cash - expected_closing_cash).toFixed(2));
+  const { closing_notes } = parsed.data;
 
   const updatePayload: Record<string, unknown> = {
     status: 'CLOSED',
     closed_at: new Date().toISOString(),
-    expected_closing_cash,
-    actual_closing_cash,
-    cash_discrepancy,
+    expected_closing_cash: active.expected_closing_cash,
+    actual_closing_cash: null,
+    cash_discrepancy: null,
     closing_notes: closing_notes || null,
   };
 
@@ -340,9 +337,7 @@ export async function closeShiftAction(
     oldData: { status: 'OPEN', opening_cash: active.opening_cash },
     newData: {
       status: 'CLOSED',
-      expected_closing_cash,
-      actual_closing_cash,
-      cash_discrepancy,
+      closed_at: updatePayload.closed_at,
       closing_notes,
     },
     performedBy: auth.userId,
@@ -352,16 +347,9 @@ export async function closeShiftAction(
   revalidatePath('/pos');
   revalidatePath('/dashboard');
 
-  const discrepancyText =
-    cash_discrepancy === 0
-      ? 'Exact match (0.00 ETB)'
-      : cash_discrepancy > 0
-      ? `Surplus (+${cash_discrepancy.toLocaleString()} ETB)`
-      : `Shortage (${cash_discrepancy.toLocaleString()} ETB)`;
-
   return {
     success: true,
-    message: `Shift closed successfully. Expected: ${expected_closing_cash.toLocaleString()} ETB, Counted: ${actual_closing_cash.toLocaleString()} ETB (${discrepancyText}).`,
+    message: 'Shift closed successfully.',
     data: closedShift,
   };
 }

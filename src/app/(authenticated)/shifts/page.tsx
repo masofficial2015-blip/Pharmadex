@@ -7,8 +7,8 @@ import { ShiftSalesList } from '@/components/shifts/shift-sales-list';
 import { Clock, Smartphone } from 'lucide-react';
 
 export const metadata = {
-  title: 'Pharmacy Shifts & Cash Reconciliation | Pharmadex',
-  description: 'Manage active shifts and physical cash drawer reconciliation',
+  title: 'Pharmacy Shifts | Pharmadex',
+  description: 'Manage active pharmacy dispensing shifts and staff handover history',
 };
 
 export default async function ShiftsPage() {
@@ -29,81 +29,44 @@ export default async function ShiftsPage() {
             <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
               <Clock className="w-4 h-4" />
             </div>
-            <h1 className="text-xl font-bold text-slate-900">Pharmacy Shifts & Reconciliation</h1>
+            <h1 className="text-xl font-bold text-slate-900">Pharmacy Shifts</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Manage pharmacy shifts, active dispensing duty, and drawer cash reconciliation.
+            Manage pharmacy shifts, active dispensing duty, and shift handover records.
           </p>
         </div>
 
         <ShiftStatusBadge activeShift={activeShift} currentUserId={profile.id} />
       </div>
 
-      {/* Active Shift Financial Till Breakdown (If Shift is Open) */}
+      {/* Active Shift Banner (If Shift is Open) */}
       {activeShift && (
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-800 shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800">
-                Active Shift Till
-              </span>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Shift on duty: {activeShift.user.full_name}
-              </h3>
-            </div>
-            <div className="text-xs text-slate-500 font-mono">
-              Started:{' '}
-              {new Date(activeShift.shift.opened_at).toLocaleTimeString('en-US', {
-                timeStyle: 'short',
-              })}
-            </div>
-          </div>
-
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Opening Cash Float */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-[11px] text-slate-500 block">Opening Cash Float</span>
-              <span className="font-mono font-bold text-base text-slate-900">
-                {activeShift.opening_cash.toLocaleString()} ETB
-              </span>
-            </div>
-
-            {/* Cash Sales */}
-            <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200">
-              <span className="text-[11px] text-emerald-800 font-semibold block">
-                Physical Cash Sales
-              </span>
-              <span className="font-mono font-bold text-base text-emerald-950">
-                +{activeShift.cash_sales_total.toLocaleString()} ETB
-              </span>
-            </div>
-
-            {/* Expected Cash in Drawer */}
-            <div className="p-3.5 bg-teal-50 rounded-2xl border border-teal-200">
-              <span className="text-[11px] text-teal-900 font-bold block">
-                Expected Cash in Till (=)
-              </span>
-              <span className="font-mono font-extrabold text-base text-teal-950">
-                {activeShift.expected_closing_cash.toLocaleString()} ETB
-              </span>
-            </div>
-          </div>
-
-          {/* Electronic Collections Banner (Excluded from Cash Till) */}
-          <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-950">
-            <div className="flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-blue-700 shrink-0" />
-              <div>
-                <span className="font-bold">Digital Collections (Telebirr & CBE Birr):</span>
-                <span className="text-blue-700 block text-[11px]">
-                  Direct bank deposits (excluded from physical cash drawer).
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900">
+                  {activeShift.user?.full_name || 'Staff Member'}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active On Duty
                 </span>
               </div>
+              <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                Shift started:{' '}
+                {new Date(activeShift.shift.opened_at).toLocaleTimeString('en-US', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </p>
             </div>
-            <div className="font-mono font-extrabold text-base text-blue-900">
-              {activeShift.bank_sales_total.toLocaleString()} ETB
-            </div>
+          </div>
+          <div className="text-xs text-slate-600 font-medium">
+            Shift ID: <span className="font-mono text-slate-800">{activeShift.shift.id.slice(0, 8)}</span>
           </div>
         </div>
       )}

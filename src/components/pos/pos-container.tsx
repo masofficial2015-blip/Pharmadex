@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useDeferredValue, useMemo } from 'react';
+import React, { useState, useDeferredValue, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   ShoppingBag,
@@ -18,6 +19,7 @@ import { PosCartSheet } from './pos-cart-sheet';
 import { PosCheckoutModal } from './pos-checkout-modal';
 import { PosReceiptModal } from './pos-receipt-modal';
 import { OpenShiftModal } from '@/components/shifts/open-shift-modal';
+import { saveMedicineSellingPriceAction } from '@/app/actions/sales';
 import type { PosMedicineItem, CartItem, ShiftSummary, SaleReceipt } from '@/types';
 
 interface PosContainerProps {
@@ -26,9 +28,15 @@ interface PosContainerProps {
 }
 
 export function PosContainer({ initialMedicines, activeShift }: PosContainerProps) {
+  const router = useRouter();
   const [medicines, setMedicines] = useState<PosMedicineItem[]>(initialMedicines);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterForm, setFilterForm] = useState<string>('ALL');
+
+  // Sync medicines when server revalidates
+  useEffect(() => {
+    setMedicines(initialMedicines);
+  }, [initialMedicines]);
 
   // React 19 deferred value keeps mobile keyboard typing buttery smooth and non-blocking
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -44,6 +52,103 @@ export function PosContainer({ initialMedicines, activeShift }: PosContainerProp
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
+
+  // 1. Session Storage Cart Persistence (survives accidental reloads or navigation)
+  useEffect(() => {
+    if (!activeShift?.shift?.id) return;
+    try {
+      const saved = sessionStorage.getItem(`pharmadex_cart_${activeShift.shift.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCart(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load cart from sessionStorage', err);
+    }
+  }, [activeShift?.shift?.id]);
+
+  useEffect(() => {
+    if (!activeShift?.shift?.id) return;
+    try {
+      if (cart.length > 0) {
+        sessionStorage.setItem(`pharmadex_cart_${activeShift.shift.id}`, JSON.stringify(cart));
+      } else {
+        sessionStorage.removeItem(`pharmadex_cart_${activeShift.shift.id}`);
+      }
+    } catch (err) {
+      console.warn('Failed to save cart to sessionStorage', err);
+    }
+  }, [cart, activeShift?.shift?.id]);
+
+  // 2. Warn before window reload or close when items are in cart
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (cart.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [cart.length]);
+
+  // 3. Browser Back Button Trap: Close open modal first, or prompt before leaving with cart items
+  useEffect(() => {
+    // Push a dummy history state to trap back button presses
+    window.history.pushState({ posScreen: true }, '', window.location.href);
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If any modal/sheet is open, close it instead of navigating away
+      if (isReceiptModalOpen) {
+        setIsReceiptModalOpen(false);
+        window.history.pushState({ posScreen: true }, '', window.location.href);
+        return;
+      }
+      if (isCheckoutModalOpen) {
+        setIsCheckoutModalOpen(false);
+        window.history.pushState({ posScreen: true }, '', window.location.href);
+        return;
+      }
+      if (isCartSheetOpen) {
+        setIsCartSheetOpen(false);
+        window.history.pushState({ posScreen: true }, '', window.location.href);
+        return;
+      }
+      if (isConfigModalOpen) {
+        setIsConfigModalOpen(false);
+        window.history.pushState({ posScreen: true }, '', window.location.href);
+        return;
+      }
+      if (isOpenShiftModalOpen) {
+        setIsOpenShiftModalOpen(false);
+        window.history.pushState({ posScreen: true }, '', window.location.href);
+        return;
+      }
+
+      // If cart has items, confirm before exiting POS
+      if (cart.length > 0) {
+        const confirmLeave = window.confirm(
+          'You have active items in your cart. Are you sure you want to leave the POS screen?'
+        );
+        if (!confirmLeave) {
+          window.history.pushState({ posScreen: true }, '', window.location.href);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [
+    isReceiptModalOpen,
+    isCheckoutModalOpen,
+    isCartSheetOpen,
+    isConfigModalOpen,
+    isOpenShiftModalOpen,
+    cart.length,
+  ]);
 
   // Dynamically derive available dosage forms/categories from available medicines
   const availableCategories = useMemo(() => {
@@ -103,6 +208,27 @@ export function PosContainer({ initialMedicines, activeShift }: PosContainerProp
   }
 
   function handleCartConfirm(item: CartItem) {
+    // If a custom selling price was entered, immediately update the local state and persist to database
+    if (item.custom_unit_price && item.custom_unit_price > 0) {
+      const newUnitPrice = item.custom_unit_price;
+      const unitsPerPack = item.medicine.units_per_pack || 1;
+      const newPackPrice = Number((newUnitPrice * unitsPerPack).toFixed(2));
+
+      // 1. Immediately update client state so all cards display the new price
+      setMedicines((prev) =>
+        prev.map((m) =>
+          m.id === item.medicine.id
+            ? { ...m, unit_price: newUnitPrice, pack_price: newPackPrice }
+            : m
+        )
+      );
+
+      // 2. Persist to database so it stays permanently populated across shifts and reloads
+      saveMedicineSellingPriceAction(item.medicine.id, newUnitPrice, newPackPrice).catch((err) =>
+        console.error('Failed to auto-save medicine price:', err)
+      );
+    }
+
     setCart((prev) => {
       const idx = prev.findIndex((i) => i.medicine.id === item.medicine.id);
       if (idx !== -1) {
@@ -121,14 +247,19 @@ export function PosContainer({ initialMedicines, activeShift }: PosContainerProp
   function handleSaleCompleted(receipt: SaleReceipt) {
     setLastReceipt(receipt);
     setCart([]);
+    if (activeShift?.shift?.id) {
+      try {
+        sessionStorage.removeItem(`pharmadex_cart_${activeShift.shift.id}`);
+      } catch (err) {
+        console.warn('Failed to clear sessionStorage cart:', err);
+      }
+    }
     setIsCheckoutModalOpen(false);
     setIsCartSheetOpen(false);
     setIsReceiptModalOpen(true);
 
-    // Refresh page inventory state after a brief moment
-    setTimeout(() => {
-      // Re-fetch logic or soft refresh
-    }, 500);
+    // Refresh server data to update batch quantities and prices
+    router.refresh();
   }
 
   return (

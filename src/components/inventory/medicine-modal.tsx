@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Lock, AlertCircle, Sparkles, Check, Layers, Package, HelpCircle } from 'lucide-react';
+import { X, Lock, Unlock, AlertCircle, AlertTriangle, Sparkles, Check, Layers, Package, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createMedicineAction, updateMedicineAction, type MedicineActionResponse } from '@/app/actions/medicines';
@@ -17,7 +17,11 @@ interface MedicineModalProps {
 
 export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: MedicineModalProps) {
   const isEditing = Boolean(medicineToEdit);
-  const isConversionLocked = isEditing && Boolean(medicineToEdit?.has_stock_transactions);
+  const hasExistingStock = isEditing && Boolean(medicineToEdit?.has_stock_transactions);
+  const [allowConversionEdit, setAllowConversionEdit] = useState(false);
+  const [recalculateInitialBatch, setRecalculateInitialBatch] = useState(true);
+
+  const isConversionDisabled = hasExistingStock && !allowConversionEdit;
 
   // Basic Details
   const [name, setName] = useState('');
@@ -207,6 +211,8 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
       setUnitsPerBox(10);
       setInjectionUnitType('ampoule');
     }
+    setAllowConversionEdit(false);
+    setRecalculateInitialBatch(true);
     setFieldErrors({});
     setGeneralError(null);
   }, [medicineToEdit, isOpen]);
@@ -261,6 +267,11 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
       }
     }
 
+    if (allowConversionEdit) {
+      body.append('allow_conversion_edit', 'true');
+      body.append('recalculate_initial_batch', recalculateInitialBatch ? 'true' : 'false');
+    }
+
     let res: MedicineActionResponse;
     if (isEditing && medicineToEdit) {
       res = await updateMedicineAction(medicineToEdit.id, null, body);
@@ -310,15 +321,45 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
               </div>
             )}
 
-            {isConversionLocked && (
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 text-xs">
-                <Lock className="w-5 h-5 shrink-0 text-amber-700 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Packaging Conversion Locked</p>
-                  <p className="mt-0.5 text-amber-800">
-                    This medicine has recorded stock transactions. Units per pack and base unit cannot be modified to prevent stock ledger corruption.
-                  </p>
+            {hasExistingStock && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5 text-xs">
+                <div className="flex items-start gap-2.5 text-amber-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-700 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Existing Stock Transactions</p>
+                    <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                      This medicine has recorded inventory. If there was a human error in the packaging configuration (e.g. strips per box or tablets per strip), you can unlock and edit it below.
+                    </p>
+                  </div>
                 </div>
+
+                {!allowConversionEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAllowConversionEdit(true)}
+                    className="w-full text-xs font-semibold text-amber-900 border-amber-300 hover:bg-amber-100 bg-white"
+                  >
+                    <Unlock className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                    Unlock & Edit Unit Conversion (Fix Human Error)
+                  </Button>
+                ) : (
+                  <div className="space-y-1.5 pt-2 border-t border-amber-200">
+                    <label className="flex items-center gap-2 text-[11px] font-semibold text-amber-950 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recalculateInitialBatch}
+                        onChange={(e) => setRecalculateInitialBatch(e.target.checked)}
+                        className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300"
+                      />
+                      <span>Recalculate legacy initial stock base units to match new pack rate</span>
+                    </label>
+                    <p className="text-[10px] text-amber-800 pl-6">
+                      Adjusts initial stock batch units proportionally so the physical pack count on your shelf remains accurate.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -375,7 +416,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                 <select
                   value={dosageForm}
                   onChange={(e) => handleDosageFormChange(e.target.value)}
-                  disabled={isConversionLocked}
+                  disabled={isConversionDisabled}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-colors"
                   required
                 >
@@ -418,7 +459,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      disabled={isConversionLocked}
+                      disabled={isConversionDisabled}
                       onClick={() => setPackagingType('BLISTER_BOX')}
                       className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
                         packagingType === 'BLISTER_BOX'
@@ -435,7 +476,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
 
                     <button
                       type="button"
-                      disabled={isConversionLocked}
+                      disabled={isConversionDisabled}
                       onClick={() => setPackagingType('TIN_BOTTLE')}
                       className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
                         packagingType === 'TIN_BOTTLE'
@@ -463,7 +504,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                           placeholder="e.g. 10"
                           value={stripsPerBox}
                           onChange={(e) => setStripsPerBox(parseInt(e.target.value) || 1)}
-                          disabled={isConversionLocked}
+                          disabled={isConversionDisabled}
                           required
                         />
                       </div>
@@ -479,7 +520,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                           placeholder="e.g. 10 (or leave empty)"
                           value={tabletsPerStrip}
                           onChange={(e) => setTabletsPerStrip(e.target.value)}
-                          disabled={isConversionLocked}
+                          disabled={isConversionDisabled}
                         />
                         <p className="text-[10px] text-slate-500 mt-1">
                           Leave empty if your pharmacy sells full strips only (strip becomes the Base Unit).
@@ -497,7 +538,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                         placeholder="e.g. 1000"
                         value={tabletsPerTin}
                         onChange={(e) => setTabletsPerTin(parseInt(e.target.value) || 1)}
-                        disabled={isConversionLocked}
+                        disabled={isConversionDisabled}
                         required
                       />
                     </div>
@@ -531,7 +572,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                       placeholder="e.g. 10"
                       value={unitsPerBox}
                       onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
-                      disabled={isConversionLocked}
+                      disabled={isConversionDisabled}
                       required
                     />
                   </div>
@@ -579,7 +620,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                     placeholder="e.g. 1 (or 10 for multi-pack)"
                     value={unitsPerBox}
                     onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
-                    disabled={isConversionLocked}
+                    disabled={isConversionDisabled}
                     required
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
@@ -613,7 +654,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                     placeholder="e.g. 20, 50"
                     value={unitsPerBox}
                     onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
-                    disabled={isConversionLocked}
+                    disabled={isConversionDisabled}
                     required
                   />
                 </div>
@@ -631,7 +672,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                     placeholder="e.g. 5, 10"
                     value={unitsPerBox}
                     onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
-                    disabled={isConversionLocked}
+                    disabled={isConversionDisabled}
                     required
                   />
                 </div>
@@ -649,7 +690,7 @@ export function MedicineModal({ isOpen, onClose, medicineToEdit, onSuccess }: Me
                     placeholder="e.g. 100 for gloves, 50 for syringes"
                     value={unitsPerBox}
                     onChange={(e) => setUnitsPerBox(parseInt(e.target.value) || 1)}
-                    disabled={isConversionLocked}
+                    disabled={isConversionDisabled}
                     required
                   />
                 </div>

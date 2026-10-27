@@ -331,7 +331,7 @@ export async function recordSaleAction(
             updated_at: new Date().toISOString(),
           })
           .eq('medicine_id', plan.medicine.id)
-          .lte('selling_price_per_unit', 0);
+          .or('selling_price_per_unit.is.null,selling_price_per_unit.lte.0');
       }
 
       // c. Log immutable audit movement in stock_movements ledger
@@ -406,4 +406,73 @@ export async function recordSaleAction(
     message: `Sale #${receiptNumber} completed successfully. Total: ${grandTotal.toLocaleString()} ETB via ${payment_method}.`,
     data: receipt,
   };
+}
+
+/**
+ * Immediately persist selling prices for a medicine and all its unpriced batches.
+ * Called when a pharmacist enters prices at POS so neither this modal nor subsequent sales
+ * have to ask for the price again.
+ */
+export async function saveMedicineSellingPriceAction(
+  medicineId: string,
+  unitPrice: number,
+  packPrice?: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const auth = await requireUser();
+    if (!medicineId || unitPrice <= 0) {
+      return { success: false, error: 'Valid medicine ID and positive unit price are required.' };
+    }
+
+    const adminSupabase = createAdminClient();
+
+    // Fetch medicine to get units_per_pack
+    const { data: medRaw, error: medErr } = await (adminSupabase.from('medicines') as any)
+      .select('id, name, units_per_pack')
+      .eq('id', medicineId)
+      .single();
+
+    if (medErr || !medRaw) {
+      return { success: false, error: 'Medicine not found.' };
+    }
+
+    const unitsPerPack = medRaw.units_per_pack || 1;
+    const resolvedPackPrice =
+      packPrice && packPrice > 0
+        ? packPrice
+        : Number((unitPrice * unitsPerPack).toFixed(2));
+
+    // Update all batches of this medicine where price is 0 or null
+    await (adminSupabase.from('batches') as any)
+      .update({
+        selling_price_per_unit: unitPrice,
+        selling_price_per_pack: resolvedPackPrice,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('medicine_id', medicineId)
+      .or('selling_price_per_unit.is.null,selling_price_per_unit.lte.0');
+
+    await recordAuditLog({
+      tableName: 'batches',
+      recordId: medicineId,
+      action: 'UPDATE',
+      newData: {
+        medicine_id: medicineId,
+        medicine_name: medRaw.name,
+        selling_price_per_unit: unitPrice,
+        selling_price_per_pack: resolvedPackPrice,
+        source: 'POS_INLINE_PRICING',
+      },
+      performedBy: auth.userId,
+    });
+
+    revalidatePath('/pos');
+    revalidatePath('/inventory/medicines');
+    revalidatePath('/inventory/batches');
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to save medicine selling price:', err);
+    return { success: false, error: err.message || 'Failed to save price.' };
+  }
 }

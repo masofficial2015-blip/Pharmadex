@@ -290,18 +290,74 @@ export async function updateMedicineAction(
   }
 
   const data = parsed.data;
+  const allowConversionEdit = formData.get('allow_conversion_edit') === 'true';
+  const recalculateInitialBatch = formData.get('recalculate_initial_batch') === 'true';
 
   // PACKAGING CONVERSION LOCK CHECK
   const isLocked = await checkMedicinePackagingLocked(medicineId);
-  if (isLocked) {
+  if (isLocked && !allowConversionEdit) {
     const unitsChanged = Number(existing.units_per_pack) !== Number(data.units_per_pack);
     const baseUnitChanged = existing.base_unit.toLowerCase() !== data.base_unit.toLowerCase();
 
     if (unitsChanged || baseUnitChanged) {
       return {
         error:
-          'Packaging conversion is locked because this medicine has recorded inventory transactions. Changes to units per pack or base unit are strictly prevented to protect inventory integrity. If packaging has changed, please create a new medicine entry or perform an authorized stock recount.',
+          'Packaging conversion is locked because this medicine has recorded inventory transactions. If you need to correct initial human data entry errors, please enable "Unlock & Edit Unit Conversion" in the form.',
       };
+    }
+  }
+
+  // If unit conversion changed and recalculation was requested for initial stock, adjust initial batches proportionally
+  const oldUnitsPerPack = Number(existing.units_per_pack) || 1;
+  const newUnitsPerPack = Number(data.units_per_pack) || 1;
+
+  if (
+    isLocked &&
+    allowConversionEdit &&
+    recalculateInitialBatch &&
+    oldUnitsPerPack > 0 &&
+    newUnitsPerPack > 0 &&
+    oldUnitsPerPack !== newUnitsPerPack
+  ) {
+    const { data: initialBatches } = await (adminSupabase.from('batches') as any)
+      .select('*')
+      .eq('medicine_id', medicineId)
+      .eq('batch_number', 'INITIAL-STOCK');
+
+    if (initialBatches && initialBatches.length > 0) {
+      for (const b of initialBatches) {
+        const oldCurrentQty = Number(b.current_quantity_units || 0);
+        const oldInitQty = Number(b.initial_quantity_units || 0);
+        const newCurrentQty = Math.round((oldCurrentQty / oldUnitsPerPack) * newUnitsPerPack);
+        const newInitQty = Math.round((oldInitQty / oldUnitsPerPack) * newUnitsPerPack);
+
+        const unitPrice = Number(b.selling_price_per_unit || 0);
+        const newPackPrice =
+          unitPrice > 0
+            ? Number((unitPrice * newUnitsPerPack).toFixed(2))
+            : Number(b.selling_price_per_pack || 0);
+
+        await (adminSupabase.from('batches') as any)
+          .update({
+            current_quantity_units: newCurrentQty,
+            initial_quantity_units: newInitQty,
+            selling_price_per_pack: newPackPrice,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', b.id);
+
+        await (adminSupabase.from('stock_movements') as any).insert({
+          batch_id: b.id,
+          medicine_id: medicineId,
+          movement_type: 'ADJUSTMENT',
+          quantity_units: newCurrentQty - oldCurrentQty,
+          previous_quantity_units: oldCurrentQty,
+          new_quantity_units: newCurrentQty,
+          reference_type: 'ADJUSTMENT',
+          performed_by: auth.userId,
+          notes: `Packaging conversion changed from ${oldUnitsPerPack} to ${newUnitsPerPack} units/pack (recalculated legacy initial stock).`,
+        });
+      }
     }
   }
 
@@ -328,15 +384,17 @@ export async function updateMedicineAction(
     }
   }
 
+  const canEditConversion = !isLocked || allowConversionEdit;
+
   const updatePayload: Record<string, unknown> = {
     name: data.name,
     strength: data.strength,
     dosage_form: data.dosage_form,
-    base_unit: isLocked ? existing.base_unit : data.base_unit.toLowerCase(),
-    units_per_pack: isLocked ? existing.units_per_pack : data.units_per_pack,
-    packaging_type: isLocked ? (existing.packaging_type || 'STANDARD') : (data.packaging_type || 'STANDARD'),
-    strips_per_box: isLocked ? existing.strips_per_box : (data.strips_per_box || null),
-    tablets_per_strip: isLocked ? existing.tablets_per_strip : (data.tablets_per_strip || null),
+    base_unit: canEditConversion ? data.base_unit.toLowerCase() : existing.base_unit,
+    units_per_pack: canEditConversion ? data.units_per_pack : existing.units_per_pack,
+    packaging_type: canEditConversion ? (data.packaging_type || 'STANDARD') : (existing.packaging_type || 'STANDARD'),
+    strips_per_box: canEditConversion ? (data.strips_per_box || null) : existing.strips_per_box,
+    tablets_per_strip: canEditConversion ? (data.tablets_per_strip || null) : existing.tablets_per_strip,
     pack_label: data.pack_label,
     low_stock_threshold: data.low_stock_threshold,
     brand_name: data.brand_name || null,
@@ -366,6 +424,8 @@ export async function updateMedicineAction(
 
   revalidatePath('/inventory/medicines');
   revalidatePath('/inventory/receive');
+  revalidatePath('/inventory/batches');
+  revalidatePath('/pos');
   return {
     success: true,
     message: `Medicine "${updatedMedicine.name} ${updatedMedicine.strength}" updated successfully.`,

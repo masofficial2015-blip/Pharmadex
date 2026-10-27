@@ -25,9 +25,6 @@ export function ShiftStatusBadge({ activeShift, currentUserId }: ShiftStatusBadg
             <div className="leading-tight">
               <span className="font-bold">Active Shift:</span>{' '}
               <span className="font-medium text-emerald-950">{activeShift.user?.full_name}</span>
-              <span className="text-emerald-700 ml-1.5 font-mono hidden sm:inline">
-                ({activeShift.expected_closing_cash.toLocaleString()} ETB in till)
-              </span>
             </div>
 
             <div className="flex items-center gap-1 ml-2 border-l border-emerald-200 pl-2">

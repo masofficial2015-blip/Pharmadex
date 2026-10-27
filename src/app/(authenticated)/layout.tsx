@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
@@ -6,6 +6,7 @@ import { logoutAction } from '@/app/actions/auth';
 import { Badge } from '@/components/ui/badge';
 import { DesktopNav } from '@/components/navigation/desktop-nav';
 import { MobileNav } from '@/components/navigation/mobile-nav';
+import { RouteProgressBar } from '@/components/navigation/route-progress-bar';
 import { LogOut, User, Shield } from 'lucide-react';
 
 export default async function AuthenticatedLayout({
@@ -18,6 +19,9 @@ export default async function AuthenticatedLayout({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
+      <Suspense fallback={null}>
+        <RouteProgressBar />
+      </Suspense>
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
         {/* Brand */}

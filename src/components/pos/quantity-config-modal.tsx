@@ -309,28 +309,6 @@ export function QuantityConfigModal({
                 </button>
               </div>
             </div>
-
-            {/* Quick Touch Increment Chips */}
-            <div className="flex items-center gap-1.5 pt-1 text-xs">
-              <span className="text-[11px] text-slate-400">Quick:</span>
-              {[1, 2, 5].map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => handleAddPacks(amt)}
-                  className="px-2.5 py-1 bg-white border border-slate-200 hover:border-teal-500 text-slate-700 hover:text-teal-900 rounded-lg font-medium text-xs shadow-2xs transition-all active:scale-95"
-                >
-                  +{amt} {packLabel}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPackQty(0)}
-                className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] ml-auto"
-              >
-                Clear
-              </button>
-            </div>
           </div>
 
           {/* Stepper 2: Loose Units (Tablets / Capsules) */}
@@ -378,28 +356,6 @@ export function QuantityConfigModal({
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
-            </div>
-
-            {/* Quick Touch Increment Chips */}
-            <div className="flex items-center gap-1.5 pt-1 text-xs">
-              <span className="text-[11px] text-slate-400">Quick:</span>
-              {[1, 5, 10, 20].map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => handleAddLoose(amt)}
-                  className="px-2.5 py-1 bg-white border border-slate-200 hover:border-teal-500 text-slate-700 hover:text-teal-900 rounded-lg font-medium text-xs shadow-2xs transition-all active:scale-95"
-                >
-                  +{amt} {baseUnit}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setLooseQty(0)}
-                className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] ml-auto"
-              >
-                Clear
-              </button>
             </div>
           </div>
 
