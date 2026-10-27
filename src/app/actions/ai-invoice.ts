@@ -42,8 +42,74 @@ export interface InvoiceScanResult {
 }
 
 /**
+ * Dynamically queries Google's ModelService.ListModels to discover the exact models
+ * supported and enabled for this specific API key, eliminating hardcoded model mismatches.
+ */
+async function getGeminiCandidateModels(apiKey: string): Promise<string[]> {
+  const versions = ['v1beta', 'v1'];
+  for (const ver of versions) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/${ver}/models?key=${apiKey}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const available: string[] = (data.models || [])
+          .filter(
+            (m: any) =>
+              Array.isArray(m.supportedGenerationMethods) &&
+              m.supportedGenerationMethods.includes('generateContent')
+          )
+          .map((m: any) => String(m.name || '').replace(/^models\//, ''))
+          .filter(Boolean);
+
+        if (available.length > 0) {
+          console.log(`[Gemini Discovery] Found ${available.length} models via ${ver}:`, available);
+          // Prioritize fast, high-quality multimodal vision models
+          const preferredOrder = [
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash',
+            'gemini-2.5-flash',
+            'gemini-1.5-flash-8b',
+            'gemini-1.5-pro',
+            'gemini-2.0-pro',
+          ];
+
+          return [...available].sort((a, b) => {
+            const idxA = preferredOrder.findIndex((p) => a.includes(p));
+            const idxB = preferredOrder.findIndex((p) => b.includes(p));
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+          });
+        }
+      } else {
+        const err = await res.text();
+        console.warn(`[Gemini Discovery] ListModels ${ver} returned ${res.status}:`, err);
+      }
+    } catch (e) {
+      console.warn(`[Gemini Discovery] Error querying ${ver}/models:`, e);
+    }
+  }
+
+  // Broad static fallback list if listing is disabled on the project key
+  return [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro',
+  ];
+}
+
+/**
  * Scan an uploaded pharmaceutical invoice image using Gemini Vision models.
- * Automatically tries gemini-3.8-flash with fallbacks if a model is unavailable.
+ * Dynamically queries available models for the given API key.
  */
 export async function scanInvoiceWithGeminiAction(
   formData: FormData
@@ -116,75 +182,84 @@ Return ONLY valid JSON with this exact structure:
   ]
 }`;
 
-    // Candidate models in preference order (starting with gemini-3.8-flash)
-    const CANDIDATE_MODELS = [
-      'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-pro',
-    ];
+    // Discover available models dynamically from Google or use robust fallback
+    const candidateModels = await getGeminiCandidateModels(apiKey);
 
     let apiResult: any = null;
     let candidateText = '';
     let successfulModel = '';
-    let lastErrorDetails = '';
+    const attemptErrors: string[] = [];
 
-    for (const model of CANDIDATE_MODELS) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    { text: prompt },
-                    {
-                      inlineData: {
-                        mimeType: mimeType,
-                        data: base64Data,
+    for (const model of candidateModels) {
+      // Try v1beta first, then fallback to v1 if needed
+      const apiVersions = ['v1beta', 'v1'];
+      let modelSucceeded = false;
+
+      for (const apiVer of apiVersions) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { text: prompt },
+                      {
+                        inlineData: {
+                          mimeType: mimeType,
+                          data: base64Data,
+                        },
                       },
-                    },
-                  ],
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.1,
                 },
-              ],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.1,
-              },
-            }),
-          }
-        );
+              }),
+            }
+          );
 
-        if (response.ok) {
-          apiResult = await response.json();
-          candidateText = apiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (candidateText && candidateText.trim()) {
-            successfulModel = model;
-            break;
+          if (response.ok) {
+            apiResult = await response.json();
+            candidateText = apiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (candidateText && candidateText.trim()) {
+              successfulModel = `${model} (${apiVer})`;
+              modelSucceeded = true;
+              break;
+            }
+          } else {
+            const errText = await response.text();
+            let parsedErrMsg = errText;
+            try {
+              const errObj = JSON.parse(errText);
+              parsedErrMsg = errObj?.error?.message || errText;
+            } catch {}
+            attemptErrors.push(`${model} [${apiVer} HTTP ${response.status}]: ${parsedErrMsg}`);
+            console.warn(`[Gemini Invoice Scan] Model ${model} via ${apiVer} failed:`, parsedErrMsg);
           }
-        } else {
-          const errText = await response.text();
-          let parsedErrMsg = errText;
-          try {
-            const errObj = JSON.parse(errText);
-            parsedErrMsg = errObj?.error?.message || errText;
-          } catch {}
-          lastErrorDetails = `Model ${model} (${response.status}): ${parsedErrMsg}`;
-          console.warn(`[Gemini Invoice Scan] Model ${model} failed, trying next fallback:`, parsedErrMsg);
+        } catch (err: any) {
+          attemptErrors.push(`${model} [${apiVer}]: ${err.message || 'Network error'}`);
         }
-      } catch (err: any) {
-        lastErrorDetails = err.message || 'Network request failed';
+      }
+
+      if (modelSucceeded) {
+        break;
       }
     }
 
     if (!candidateText) {
+      const summaryError =
+        attemptErrors.length > 0
+          ? attemptErrors.slice(0, 3).join('; ')
+          : 'Please check your API key, project quotas, or network connection.';
       return {
         success: false,
-        error: `Could not connect to Gemini models. ${lastErrorDetails || 'Please check your API key and network connection.'}`,
+        error: `Could not connect to Gemini models. ${summaryError}`,
         items: [],
       };
     }
