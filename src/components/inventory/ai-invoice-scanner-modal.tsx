@@ -54,8 +54,6 @@ export function AiInvoiceScannerModal({
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<InvoiceScanResult | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string>('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   // Editable review states
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
@@ -67,14 +65,6 @@ export function AiInvoiceScannerModal({
 
   // New supplier modal integration
   const [isNewSupplierModalOpen, setIsNewSupplierModalOpen] = useState(false);
-
-  // Load cached API key from localStorage if available
-  useEffect(() => {
-    const cached = localStorage.getItem('pharmadex_gemini_api_key');
-    if (cached) {
-      setApiKey(cached);
-    }
-  }, []);
 
   // Update preview when file changes
   useEffect(() => {
@@ -98,6 +88,66 @@ export function AiInvoiceScannerModal({
     }
   }
 
+  // Client-side image compression to prevent Vercel / Next.js 1MB/4.5MB payload limits
+  async function compressImageIfNeeded(file: File): Promise<File> {
+    if (file.size < 600 * 1024) return file; // Already small enough
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX_DIM = 1800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressed);
+          },
+          'image/jpeg',
+          0.85
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
   async function handleStartScan() {
     if (!selectedFile) {
       setGeneralError('Please select or photograph an invoice first.');
@@ -108,31 +158,30 @@ export function AiInvoiceScannerModal({
     setGeneralError(null);
     setReceiveSuccessMessage(null);
 
-    const formData = new FormData();
-    formData.append('image', selectedFile);
-    if (apiKey) {
-      formData.append('apiKey', apiKey);
-      localStorage.setItem('pharmadex_gemini_api_key', apiKey);
-    }
+    try {
+      const fileToSend = await compressImageIfNeeded(selectedFile);
+      const formData = new FormData();
+      formData.append('image', fileToSend);
 
-    const result = await scanInvoiceWithGeminiAction(formData);
-    setIsScanning(false);
+      const result = await scanInvoiceWithGeminiAction(formData);
+      setIsScanning(false);
 
-    if (!result.success) {
-      setGeneralError(result.error || 'Failed to scan invoice.');
-      if (result.error?.includes('API Key')) {
-        setShowApiKeyInput(true);
+      if (!result.success) {
+        setGeneralError(result.error || 'Failed to scan invoice.');
+        return;
       }
-      return;
-    }
 
-    setScanResult(result);
-    setItems(result.items);
-    setInvoiceNumber(result.invoice_number || '');
-    if (result.matched_supplier_id) {
-      setSelectedSupplierId(result.matched_supplier_id);
-    } else if (suppliers.length > 0) {
-      setSelectedSupplierId(suppliers[0].id);
+      setScanResult(result);
+      setItems(result.items);
+      setInvoiceNumber(result.invoice_number || '');
+      if (result.matched_supplier_id) {
+        setSelectedSupplierId(result.matched_supplier_id);
+      } else if (suppliers.length > 0) {
+        setSelectedSupplierId(suppliers[0].id);
+      }
+    } catch (err: any) {
+      setIsScanning(false);
+      setGeneralError(err.message || 'Error preparing invoice image for scanning.');
     }
   }
 
@@ -328,37 +377,6 @@ export function AiInvoiceScannerModal({
                       </div>
                     )}
                   </div>
-
-                  {/* Optional API Key Input */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                      className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                      {showApiKeyInput ? 'Hide API Key Settings' : 'Configure Gemini API Key (Optional)'}
-                    </button>
-                    {showApiKeyInput && (
-                      <div className="mt-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          Google Gemini API Key
-                        </label>
-                        <Input
-                          type="password"
-                          placeholder="AIzaSy..."
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          className="font-mono text-xs"
-                        />
-                        <p className="text-[11px] text-slate-500">
-                          Can also be placed in <code className="text-slate-700">.env.local</code> as{' '}
-                          <code className="text-slate-700">GEMINI_API_KEY</code>.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Scan Button */}
                   {selectedFile && (
                     <Button
@@ -369,7 +387,7 @@ export function AiInvoiceScannerModal({
                       className="w-full py-3 text-sm font-bold bg-teal-700 hover:bg-teal-800 text-white shadow-sm"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
-                      {isScanning ? 'Extracting with Gemini 2.5 Flash...' : 'Scan & Extract Invoice'}
+                      {isScanning ? 'Analyzing & Extracting Invoice...' : 'Scan & Extract Invoice'}
                     </Button>
                   )}
                 </div>
