@@ -379,3 +379,119 @@ export async function updateBatchPricingAction(
   revalidatePath('/inventory/medicines');
   return { success: true };
 }
+
+export interface UpdateBatchDetailsParams {
+  batchId: string;
+  currentQuantityUnits: number;
+  costPerPack: number;
+  sellingPricePerPack: number;
+  sellingPricePerUnit: number;
+  batchNumber?: string;
+  expiryDate?: string;
+  reason?: string;
+}
+
+/**
+ * Edit batch values: stock count, cost price, selling prices, batch number, and expiry date.
+ * Creates an ADJUSTMENT stock movement if quantity changes, maintaining full audit trail.
+ */
+export async function updateBatchDetailsAction(
+  params: UpdateBatchDetailsParams
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireUser();
+  const adminSupabase = createAdminClient();
+
+  // 1. Fetch current batch data
+  const { data: currentBatch, error: fetchError } = await (adminSupabase.from('batches') as any)
+    .select('*, medicine:medicines(*)')
+    .eq('id', params.batchId)
+    .single();
+
+  if (fetchError || !currentBatch) {
+    return { success: false, error: 'Batch not found' };
+  }
+
+  const prevQty = Number(currentBatch.current_quantity_units) || 0;
+  const newQty = Math.max(0, Math.floor(params.currentQuantityUnits));
+  const qtyDelta = newQty - prevQty;
+
+  const updateData: Record<string, unknown> = {
+    current_quantity_units: newQty,
+    cost_per_pack: Math.max(0, params.costPerPack),
+    selling_price_per_pack: Math.max(0, params.sellingPricePerPack),
+    selling_price_per_unit: Math.max(0, params.sellingPricePerUnit),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (newQty > (Number(currentBatch.initial_quantity_units) || 0)) {
+    updateData.initial_quantity_units = newQty;
+  }
+
+  if (params.batchNumber && params.batchNumber.trim()) {
+    updateData.batch_number = params.batchNumber.trim();
+  }
+
+  if (params.expiryDate && params.expiryDate.trim()) {
+    updateData.expiry_date = params.expiryDate.trim();
+  }
+
+  const { error: updateError } = await (adminSupabase.from('batches') as any)
+    .update(updateData)
+    .eq('id', params.batchId);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  // 2. If quantity changed, log an audit record in stock_movements
+  if (qtyDelta !== 0) {
+    const { error: movementError } = await (adminSupabase.from('stock_movements') as any).insert({
+      batch_id: params.batchId,
+      medicine_id: currentBatch.medicine_id,
+      movement_type: 'ADJUSTMENT',
+      quantity_units: qtyDelta,
+      previous_quantity_units: prevQty,
+      new_quantity_units: newQty,
+      reference_type: 'ADJUSTMENT',
+      performed_by: auth.userId,
+      notes: params.reason?.trim() || `Inventory count correction (${prevQty} -> ${newQty} units)`,
+    });
+
+    if (movementError) {
+      console.error('Error logging stock movement adjustment:', movementError);
+    }
+  }
+
+  // 3. Record audit log
+  await recordAuditLog({
+    tableName: 'batches',
+    recordId: params.batchId,
+    action: 'UPDATE',
+    oldData: {
+      medicine_name: currentBatch.medicine?.name,
+      current_quantity_units: prevQty,
+      cost_per_pack: currentBatch.cost_per_pack,
+      selling_price_per_pack: currentBatch.selling_price_per_pack,
+      selling_price_per_unit: currentBatch.selling_price_per_unit,
+      batch_number: currentBatch.batch_number,
+    },
+    newData: {
+      current_quantity_units: newQty,
+      quantity_delta: qtyDelta,
+      cost_per_pack: params.costPerPack,
+      selling_price_per_pack: params.sellingPricePerPack,
+      selling_price_per_unit: params.sellingPricePerUnit,
+      batch_number: updateData.batch_number || currentBatch.batch_number,
+      reason: params.reason,
+    },
+    performedBy: auth.userId,
+  });
+
+  revalidatePath('/inventory/batches');
+  revalidatePath('/inventory/medicines');
+  revalidatePath('/inventory/movements');
+  revalidatePath('/pos');
+  revalidatePath('/dashboard');
+
+  return { success: true };
+}

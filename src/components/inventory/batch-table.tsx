@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatStockBreakdown } from '@/lib/utils/packaging';
-import { updateBatchPricingAction } from '@/app/actions/inventory';
+import { updateBatchDetailsAction } from '@/app/actions/inventory';
 import type { BatchWithDetails } from '@/types';
 
 interface BatchTableProps {
@@ -34,11 +34,19 @@ export function BatchTable({ batches }: BatchTableProps) {
   const [filterTab, setFilterTab] = useState<'ALL' | 'NEAR_EXPIRY' | 'EXPIRED' | 'AVAILABLE'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Quick Price Edit State
+  // Batch Edit State (Stock count, prices, batch number, expiry)
   const [editingBatch, setEditingBatch] = useState<BatchWithDetails | null>(null);
-  const [newPackPrice, setNewPackPrice] = useState('');
-  const [newUnitPrice, setNewUnitPrice] = useState('');
-  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
+  const [editPacks, setEditPacks] = useState('');
+  const [editLooseUnits, setEditLooseUnits] = useState('');
+  const [editTotalUnits, setEditTotalUnits] = useState('');
+  const [editCostPrice, setEditCostPrice] = useState('');
+  const [editPackPrice, setEditPackPrice] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
+  const [editBatchNumber, setEditBatchNumber] = useState('');
+  const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     setBatchesState(batches);
@@ -52,40 +60,99 @@ export function BatchTable({ batches }: BatchTableProps) {
     setCurrentPage(1);
   }, [deferredSearchQuery, filterTab]);
 
-  function handleStartEditPrice(batch: BatchWithDetails) {
+  function handleStartEdit(batch: BatchWithDetails) {
     setEditingBatch(batch);
-    setNewPackPrice(batch.selling_price_per_pack ? batch.selling_price_per_pack.toString() : '');
-    setNewUnitPrice(batch.selling_price_per_unit ? batch.selling_price_per_unit.toString() : '');
+    setEditError(null);
+    const unitsPerPack = batch.medicine?.units_per_pack || 1;
+    const currentUnits = batch.current_quantity_units || 0;
+    const currentPacks = Math.floor(currentUnits / unitsPerPack);
+    const currentLoose = currentUnits % unitsPerPack;
+
+    setEditPacks(currentPacks.toString());
+    setEditLooseUnits(currentLoose.toString());
+    setEditTotalUnits(currentUnits.toString());
+
+    setEditCostPrice(batch.cost_per_pack ? batch.cost_per_pack.toString() : '0');
+    setEditPackPrice(batch.selling_price_per_pack ? batch.selling_price_per_pack.toString() : '');
+    setEditUnitPrice(batch.selling_price_per_unit ? batch.selling_price_per_unit.toString() : '');
+    setEditBatchNumber(batch.batch_number || '');
+    setEditExpiryDate(batch.expiry_date ? batch.expiry_date.split('T')[0] : '');
+    setEditReason('');
   }
 
-  async function handleSavePricing() {
+  function handlePacksOrLooseChange(newPacksStr: string, newLooseStr: string) {
     if (!editingBatch) return;
-    const packPrice = parseFloat(newPackPrice) || 0;
-    const unitPrice = parseFloat(newUnitPrice) || 0;
-    setIsUpdatingPrice(true);
+    const unitsPerPack = editingBatch.medicine?.units_per_pack || 1;
+    setEditPacks(newPacksStr);
+    setEditLooseUnits(newLooseStr);
+
+    const p = parseInt(newPacksStr) || 0;
+    const l = parseInt(newLooseStr) || 0;
+    const total = p * unitsPerPack + l;
+    setEditTotalUnits(total.toString());
+  }
+
+  function handleTotalUnitsChange(newTotalStr: string) {
+    if (!editingBatch) return;
+    const unitsPerPack = editingBatch.medicine?.units_per_pack || 1;
+    setEditTotalUnits(newTotalStr);
+
+    const total = parseInt(newTotalStr) || 0;
+    setEditPacks(Math.floor(total / unitsPerPack).toString());
+    setEditLooseUnits((total % unitsPerPack).toString());
+  }
+
+  async function handleSaveBatch() {
+    if (!editingBatch) return;
+    const totalUnits = parseInt(editTotalUnits);
+    if (isNaN(totalUnits) || totalUnits < 0) {
+      setEditError('Please enter a valid stock quantity (0 or greater).');
+      return;
+    }
+
+    const costPack = parseFloat(editCostPrice) || 0;
+    const packPrice = parseFloat(editPackPrice) || 0;
+    const unitPrice = parseFloat(editUnitPrice) || 0;
+
+    setIsUpdating(true);
+    setEditError(null);
 
     try {
-      const res = await updateBatchPricingAction(editingBatch.id, packPrice, unitPrice);
+      const res = await updateBatchDetailsAction({
+        batchId: editingBatch.id,
+        currentQuantityUnits: totalUnits,
+        costPerPack: costPack,
+        sellingPricePerPack: packPrice,
+        sellingPricePerUnit: unitPrice,
+        batchNumber: editBatchNumber.trim(),
+        expiryDate: editExpiryDate.trim(),
+        reason: editReason.trim(),
+      });
+
       if (res.success) {
         setBatchesState((prev) =>
           prev.map((b) =>
             b.id === editingBatch.id
               ? {
                   ...b,
+                  current_quantity_units: totalUnits,
+                  cost_per_pack: costPack,
                   selling_price_per_pack: packPrice,
                   selling_price_per_unit: unitPrice,
+                  batch_number: editBatchNumber.trim() || b.batch_number,
+                  expiry_date: editExpiryDate.trim() || b.expiry_date,
                 }
               : b
           )
         );
         setEditingBatch(null);
       } else {
-        alert(res.error || 'Failed to update pricing');
+        setEditError(res.error || 'Failed to update batch details');
       }
     } catch (err: any) {
-      alert(err.message || 'Error updating pricing');
+      setEditError(err.message || 'Error updating batch');
     } finally {
-      setIsUpdatingPrice(false);
+      setIsUpdating(false);
     }
   }
 
@@ -250,7 +317,8 @@ export function BatchTable({ batches }: BatchTableProps) {
                   <th className="py-3.5 px-4">Available Units</th>
                   <th className="py-3.5 px-4">Selling Prices</th>
                   <th className="py-3.5 px-4">Supplier</th>
-                  <th className="py-3.5 px-4 text-right">Status</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -259,8 +327,6 @@ export function BatchTable({ batches }: BatchTableProps) {
                   const unitsPerPack = b.medicine?.units_per_pack || 1;
                   const packLabel = b.medicine?.pack_label || 'Pack';
                   const baseUnit = b.medicine?.base_unit || 'unit';
-                  const availablePacks = Math.floor(b.current_quantity_units / unitsPerPack);
-                  const looseUnits = b.current_quantity_units % unitsPerPack;
 
                   return (
                     <tr
@@ -340,28 +406,18 @@ export function BatchTable({ batches }: BatchTableProps) {
 
                       {/* Selling Price */}
                       <td className="py-4 px-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <div className="text-xs text-slate-900 font-semibold">
-                              {b.selling_price_per_pack} ETB / {packLabel}
-                            </div>
-                            <div className="text-[11px] text-teal-700 font-medium mt-0.5">
-                              {b.selling_price_per_unit} ETB / {baseUnit}
-                            </div>
-                            {Number(b.selling_price_per_pack) === 0 && (
-                              <span className="inline-block px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px] font-medium mt-0.5">
-                                Price not set
-                              </span>
-                            )}
+                        <div>
+                          <div className="text-xs text-slate-900 font-semibold">
+                            {b.selling_price_per_pack} ETB / {packLabel}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditPrice(b)}
-                            className="p-1.5 text-slate-400 hover:text-teal-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
-                            title="Edit Selling Price"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="text-[11px] text-teal-700 font-medium mt-0.5">
+                            {b.selling_price_per_unit} ETB / {baseUnit}
+                          </div>
+                          {Number(b.selling_price_per_pack) === 0 && (
+                            <span className="inline-block px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px] font-medium mt-0.5">
+                              Price not set
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -371,7 +427,7 @@ export function BatchTable({ batches }: BatchTableProps) {
                       </td>
 
                       {/* Status */}
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-center">
                         {b.is_expired ? (
                           <Badge variant="danger">Blocked (Expired)</Badge>
                         ) : b.is_near_expiry ? (
@@ -379,6 +435,20 @@ export function BatchTable({ batches }: BatchTableProps) {
                         ) : (
                           <Badge variant="success">Healthy FEFO</Badge>
                         )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-4 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStartEdit(b)}
+                          className="h-8 px-2.5 text-xs font-semibold text-teal-800 hover:text-teal-900 border-teal-200 hover:bg-teal-50 gap-1.5 shadow-2xs"
+                          title="Edit Batch Stock & Pricing"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -434,87 +504,240 @@ export function BatchTable({ batches }: BatchTableProps) {
         </div>
       )}
 
-      {/* Quick Edit Price Modal */}
+      {/* Edit Batch Stock & Pricing Modal */}
       {editingBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 space-y-4">
-            <div className="flex items-start justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-5 my-8">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
-                <h4 className="font-bold text-sm text-slate-900">Update Selling Price</h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {editingBatch.medicine?.name} ({editingBatch.medicine?.strength}) • Batch #{editingBatch.batch_number}
+                <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <Edit2 className="w-4 h-4 text-teal-700" />
+                  Edit Batch Stock & Pricing
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  <span className="font-semibold text-slate-800">{editingBatch.medicine?.name}</span>{' '}
+                  {editingBatch.medicine?.strength && <span>{editingBatch.medicine.strength}</span>}{' '}
+                  {editingBatch.medicine?.dosage_form && <span>({editingBatch.medicine.dosage_form})</span>}
+                  {editingBatch.medicine?.brand_name && (
+                    <span className="text-slate-600"> • Brand: {editingBatch.medicine.brand_name}</span>
+                  )}
                 </p>
+                <div className="text-[11px] text-teal-700 font-medium mt-0.5">
+                  Packaging: 1 {editingBatch.medicine?.pack_label || 'Pack'} = {editingBatch.medicine?.units_per_pack || 1} {editingBatch.medicine?.base_unit || 'unit'}(s)
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingBatch(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-md"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Selling Price per {editingBatch.medicine?.pack_label || 'Pack'} (ETB)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newPackPrice}
-                  onChange={(e) => {
-                    const p = e.target.value;
-                    setNewPackPrice(p);
-                    const units = editingBatch.medicine?.units_per_pack || 1;
-                    if (parseFloat(p) > 0 && units > 0) {
-                      setNewUnitPrice((parseFloat(p) / units).toFixed(2));
-                    }
-                  }}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold"
-                  placeholder="e.g. 150.00"
-                  autoFocus
-                />
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Section 1: Stock Quantity */}
+              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-teal-700" />
+                    Stock Quantity on Hand
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Current: {editingBatch.current_quantity_units} {editingBatch.medicine?.base_unit || 'unit'}(s)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Packs ({editingBatch.medicine?.pack_label || 'Box'}es)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editPacks}
+                      onChange={(e) => handlePacksOrLooseChange(e.target.value, editLooseUnits)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold bg-white"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Loose ({editingBatch.medicine?.base_unit || 'Unit'}s)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editLooseUnits}
+                      onChange={(e) => handlePacksOrLooseChange(editPacks, e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold bg-white"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between">
+                  <span className="text-xs text-slate-600 font-medium">
+                    Total Base Units:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={editTotalUnits}
+                      onChange={(e) => handleTotalUnitsChange(e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-24 px-2 py-1 text-sm font-bold text-teal-800 text-right border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
+                    />
+                    <span className="text-xs text-slate-500 font-medium">
+                      {editingBatch.medicine?.base_unit || 'unit'}(s)
+                    </span>
+                  </div>
+                </div>
               </div>
 
+              {/* Section 2: Pricing */}
+              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-teal-700" />
+                  Pricing (ETB)
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Cost / {editingBatch.medicine?.pack_label || 'Pack'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editCostPrice}
+                      onChange={(e) => setEditCostPrice(e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Selling / {editingBatch.medicine?.pack_label || 'Pack'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editPackPrice}
+                      onChange={(e) => {
+                        const p = e.target.value;
+                        setEditPackPrice(p);
+                        const units = editingBatch.medicine?.units_per_pack || 1;
+                        if (parseFloat(p) > 0 && units > 0) {
+                          setEditUnitPrice((parseFloat(p) / units).toFixed(2));
+                        }
+                      }}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900 bg-white"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Selling / {editingBatch.medicine?.base_unit || 'Unit'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editUnitPrice}
+                      onChange={(e) => setEditUnitPrice(e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 bg-white"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Batch Number & Expiry Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Batch #
+                  </label>
+                  <input
+                    type="text"
+                    value={editBatchNumber}
+                    onChange={(e) => setEditBatchNumber(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-mono text-xs"
+                    placeholder="BATCH-123"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Expiry Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editExpiryDate}
+                    onChange={(e) => setEditExpiryDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  />
+                </div>
+              </div>
+
+              {/* Section 4: Adjustment Reason */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Selling Price per {editingBatch.medicine?.base_unit || 'Unit'} (ETB)
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Reason for Adjustment <span className="text-slate-400 font-normal">(Optional audit note)</span>
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newUnitPrice}
-                  onChange={(e) => setNewUnitPrice(e.target.value)}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
-                  placeholder="e.g. 1.50"
+                  type="text"
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 placeholder:text-slate-400"
+                  placeholder="e.g. Initial stock counting mistake correction"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setEditingBatch(null)}
-                disabled={isUpdatingPrice}
+                disabled={isUpdating}
               >
                 Cancel
               </Button>
               <Button
                 variant="primary"
                 size="sm"
-                onClick={handleSavePricing}
-                disabled={isUpdatingPrice || !newPackPrice}
-                className="bg-teal-700 hover:bg-teal-800 text-white"
+                onClick={handleSaveBatch}
+                disabled={isUpdating}
+                className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-4"
               >
-                {isUpdatingPrice ? 'Saving...' : 'Save Price'}
+                {isUpdating ? 'Saving Changes...' : 'Save Batch & Stock'}
               </Button>
             </div>
           </div>
