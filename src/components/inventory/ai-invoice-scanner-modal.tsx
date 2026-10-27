@@ -88,19 +88,37 @@ export function AiInvoiceScannerModal({
     }
   }
 
-  // Client-side image compression to prevent Vercel / Next.js 1MB/4.5MB payload limits
+  // Client-side image handling: preserve 100% original quality unless exceeding Vercel 4.5MB limit
   async function compressImageIfNeeded(file: File): Promise<File> {
-    if (file.size < 600 * 1024) return file; // Already small enough
+    // Only compress files larger than 3.5MB to stay well under Vercel's 4.5MB serverless limit
+    if (file.size <= 3.5 * 1024 * 1024) return file;
 
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const MAX_DIM = 1800;
-        let width = img.width;
-        let height = img.height;
+    return new Promise(async (resolve) => {
+      try {
+        let width = 0;
+        let height = 0;
+        let source: CanvasImageSource;
 
+        if (typeof createImageBitmap === 'function') {
+          const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+          width = bitmap.width;
+          height = bitmap.height;
+          source = bitmap;
+        } else {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          await new Promise((res, rej) => {
+            img.onload = res;
+            img.onerror = rej;
+            img.src = url;
+          });
+          URL.revokeObjectURL(url);
+          width = img.width;
+          height = img.height;
+          source = img;
+        }
+
+        const MAX_DIM = 2560;
         if (width > MAX_DIM || height > MAX_DIM) {
           if (width > height) {
             height = Math.round((height * MAX_DIM) / width);
@@ -122,7 +140,7 @@ export function AiInvoiceScannerModal({
 
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
+        ctx.drawImage(source, 0, 0, width, height);
 
         canvas.toBlob(
           (blob) => {
@@ -137,14 +155,11 @@ export function AiInvoiceScannerModal({
             resolve(compressed);
           },
           'image/jpeg',
-          0.85
+          0.92
         );
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
+      } catch {
         resolve(file);
-      };
-      img.src = url;
+      }
     });
   }
 

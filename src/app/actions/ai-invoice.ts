@@ -108,6 +108,90 @@ async function getGeminiCandidateModels(apiKey: string): Promise<string[]> {
 }
 
 /**
+ * Resilient JSON parser for model outputs.
+ * Handles markdown fences, preamble/postamble text, trailing commas, and unclosed brackets.
+ */
+function extractAndParseJson(text: string): any {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Empty response from model');
+  }
+
+  // 1. Direct parse
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  // 2. Strip markdown blocks anywhere in text (with or without 'json' tag)
+  const markdownMatches = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/gi);
+  if (markdownMatches) {
+    for (const match of markdownMatches) {
+      const cleanBlock = match.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      try {
+        return JSON.parse(cleanBlock);
+      } catch {}
+      try {
+        return JSON.parse(cleanBlock.replace(/,\s*([}\]])/g, '$1'));
+      } catch {}
+    }
+  }
+
+  // 3. Find outermost { and }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+    try {
+      return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+    } catch {}
+  }
+
+  // 4. Try repairing cut-off / truncated JSON
+  if (firstBrace !== -1) {
+    try {
+      let s = text.substring(firstBrace).trim();
+      s = s.replace(/`+$/, '').trim();
+
+      // Ensure open string is closed
+      let inString = false;
+      let quoteEscaped = false;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '"' && !quoteEscaped) inString = !inString;
+        quoteEscaped = ch === '\\' && !quoteEscaped;
+      }
+      if (inString) s += '"';
+
+      s = s.replace(/,\s*$/, '').replace(/:\s*$/, ': null');
+
+      const stack: string[] = [];
+      inString = false;
+      quoteEscaped = false;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '"' && !quoteEscaped) inString = !inString;
+        quoteEscaped = ch === '\\' && !quoteEscaped;
+        if (!inString) {
+          if (ch === '{') stack.push('}');
+          else if (ch === '[') stack.push(']');
+          else if (ch === '}' || ch === ']') {
+            if (stack.length > 0 && stack[stack.length - 1] === ch) stack.pop();
+          }
+        }
+      }
+      while (stack.length > 0) s += stack.pop()!;
+
+      return JSON.parse(s);
+    } catch {}
+  }
+
+  throw new Error(`Invalid JSON format: ${text.substring(0, 100)}`);
+}
+
+/**
  * Scan an uploaded pharmaceutical invoice image using Gemini Vision models.
  * Dynamically queries available models for the given API key.
  */
@@ -219,6 +303,7 @@ Return ONLY valid JSON with this exact structure:
                 generationConfig: {
                   responseMimeType: 'application/json',
                   temperature: 0.1,
+                  maxOutputTokens: 8192,
                 },
               }),
             }
@@ -266,14 +351,12 @@ Return ONLY valid JSON with this exact structure:
 
     let parsedData: any;
     try {
-      // Clean potential markdown blocks
-      const cleanJson = candidateText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-      parsedData = JSON.parse(cleanJson);
-    } catch (parseErr) {
+      parsedData = extractAndParseJson(candidateText);
+    } catch (parseErr: any) {
       console.error('Failed to parse Gemini response as JSON:', candidateText);
       return {
         success: false,
-        error: 'Failed to extract structured text from the invoice image. Please verify image clarity and contrast.',
+        error: `Could not process invoice data: ${parseErr.message || 'Malformed JSON response'}.`,
         items: [],
       };
     }
@@ -295,7 +378,16 @@ Return ONLY valid JSON with this exact structure:
     }
 
     // Process and match extracted items against active medicines catalog
-    const rawItems: any[] = Array.isArray(parsedData.items) ? parsedData.items : [];
+    const rawItems: any[] = Array.isArray(parsedData)
+      ? parsedData
+      : Array.isArray(parsedData.items)
+      ? parsedData.items
+      : Array.isArray(parsedData.line_items)
+      ? parsedData.line_items
+      : Array.isArray(parsedData.invoice_items)
+      ? parsedData.invoice_items
+      : [];
+
     if (rawItems.length === 0) {
       return {
         success: false,
