@@ -57,30 +57,56 @@ async function getGeminiCandidateModels(apiKey: string): Promise<string[]> {
       if (res.ok) {
         const data = await res.json();
         const available: string[] = (data.models || [])
-          .filter(
-            (m: any) =>
+          .filter((m: any) => {
+            const name = String(m.name || '').replace(/^models\//, '');
+            // Must support generateContent
+            const supportsGenerate =
               Array.isArray(m.supportedGenerationMethods) &&
-              m.supportedGenerationMethods.includes('generateContent')
-          )
+              m.supportedGenerationMethods.includes('generateContent');
+            if (!supportsGenerate) return false;
+
+            // Filter out non-multimodal / specialized non-vision models
+            const lower = name.toLowerCase();
+            const isNonVision =
+              lower.includes('tts') ||
+              lower.includes('transcribe') ||
+              lower.includes('clip') ||
+              lower.includes('lyria') ||
+              lower.includes('gemma') ||
+              lower.includes('embedding') ||
+              lower.includes('robotics') ||
+              lower.includes('computer-use') ||
+              lower.includes('argon');
+
+            return !isNonVision;
+          })
           .map((m: any) => String(m.name || '').replace(/^models\//, ''))
           .filter(Boolean);
 
         if (available.length > 0) {
-          console.log(`[Gemini Discovery] Found ${available.length} models via ${ver}:`, available);
-          // Prioritize fast, high-quality multimodal vision models
+          console.log(`[Gemini Discovery] Found ${available.length} vision-capable models via ${ver}:`, available);
+          // Prioritize gemini-3.8-flash first for speed and compliance with latest Google API requirements
           const preferredOrder = [
+            'gemini-3.8-flash',
+            'gemini-3.7-flash',
+            'gemini-3.6-flash',
+            'gemini-3.5-flash',
+            'gemini-3.5-flash-lite',
+            'gemini-3-flash-preview',
+            'gemini-flash-latest',
             'gemini-2.0-flash',
             'gemini-2.0-flash-lite',
             'gemini-1.5-flash',
-            'gemini-2.5-flash',
-            'gemini-1.5-flash-8b',
-            'gemini-1.5-pro',
-            'gemini-2.0-pro',
+            'gemini-1.5-flash-latest',
+            'gemini-3.1-pro-preview',
+            'gemini-pro-latest',
+            'gemini-2.5-flash', // Deprecated for new users by Google
+            'gemini-2.5-pro',
           ];
 
           return [...available].sort((a, b) => {
-            const idxA = preferredOrder.findIndex((p) => a.includes(p));
-            const idxB = preferredOrder.findIndex((p) => b.includes(p));
+            const idxA = preferredOrder.indexOf(a);
+            const idxB = preferredOrder.indexOf(b);
             if (idxA !== -1 && idxB !== -1) return idxA - idxB;
             if (idxA !== -1) return -1;
             if (idxB !== -1) return 1;
@@ -98,12 +124,11 @@ async function getGeminiCandidateModels(apiKey: string): Promise<string[]> {
 
   // Broad static fallback list if listing is disabled on the project key
   return [
+    'gemini-3.8-flash',
+    'gemini-3.5-flash',
     'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
     'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro',
+    'gemini-flash-latest',
   ];
 }
 

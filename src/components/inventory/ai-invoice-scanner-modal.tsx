@@ -541,17 +541,30 @@ export function AiInvoiceScannerModal({
                           <tr>
                             <th className="py-3 px-3 w-10 text-center">Inc</th>
                             <th className="py-3 px-3">Invoice Item & Matched Medicine</th>
-                            <th className="py-3 px-3 w-32">Batch #</th>
-                            <th className="py-3 px-3 w-32">Expiry Date</th>
-                            <th className="py-3 px-3 w-20 text-right">Packs</th>
-                            <th className="py-3 px-3 w-24 text-right">Cost (ETB)</th>
-                            <th className="py-3 px-3 w-28 text-right">Sell Price</th>
+                            <th className="py-3 px-3 w-28">Batch #</th>
+                            <th className="py-3 px-3 w-28">Expiry Date</th>
+                            <th className="py-3 px-3 w-16 text-right">Packs</th>
+                            <th className="py-3 px-3 w-28 text-right">Cost (ETB)</th>
+                            <th className="py-3 px-3 w-36 text-right">Sell Price (Pack & Unit)</th>
                             {onApplySingleItem && <th className="py-3 px-3 w-24 text-center">Action</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-sans">
                           {items.map((item) => {
                             const isMatched = Boolean(item.matched_medicine_id);
+                            const med = medicines.find((m) => m.id === item.matched_medicine_id);
+                            const unitsPerPack = med?.units_per_pack || 1;
+                            const packLabel = med?.pack_label || 'Pack';
+                            const baseUnit = med?.base_unit || 'Unit';
+                            const unitCost = Number((item.cost_per_pack / unitsPerPack).toFixed(2));
+                            const markupPercent =
+                              item.cost_per_pack > 0 && item.selling_price_per_pack > 0
+                                ? Math.round(
+                                    ((item.selling_price_per_pack - item.cost_per_pack) /
+                                      item.cost_per_pack) *
+                                      100
+                                  )
+                                : null;
 
                             return (
                               <tr
@@ -601,7 +614,7 @@ export function AiInvoiceScannerModal({
                                     {medicines.map((m) => (
                                       <option key={m.id} value={m.id}>
                                         {m.name} {m.brand_name ? `(${m.brand_name})` : ''} {m.strength}{' '}
-                                        - {m.dosage_form}
+                                        - {m.dosage_form} (1 {m.pack_label || 'Pack'} = {m.units_per_pack || 1} {m.base_unit || 'Unit'})
                                       </option>
                                     ))}
                                   </select>
@@ -649,42 +662,94 @@ export function AiInvoiceScannerModal({
 
                                 {/* Unit Cost (ETB) */}
                                 <td className="py-3 px-3 text-right">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={item.cost_per_pack}
-                                    onChange={(e) => {
-                                      const cost = Math.max(0, parseFloat(e.target.value) || 0);
-                                      handleUpdateItem(item.id, {
-                                        cost_per_pack: cost,
-                                        unit_price: cost,
-                                      });
-                                    }}
-                                    className="h-8 text-xs font-mono text-right w-20 ml-auto"
-                                  />
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={item.cost_per_pack}
+                                        onChange={(e) => {
+                                          const cost = Math.max(0, parseFloat(e.target.value) || 0);
+                                          handleUpdateItem(item.id, {
+                                            cost_per_pack: cost,
+                                            unit_price: cost,
+                                          });
+                                        }}
+                                        className="h-7 text-xs font-mono text-right w-20 ml-auto"
+                                        title="Cost per pack"
+                                      />
+                                      <span className="text-[10px] text-slate-400 font-medium w-8 text-left truncate">
+                                        /{packLabel}
+                                      </span>
+                                    </div>
+                                    {unitsPerPack > 1 && (
+                                      <div className="text-[10px] text-slate-400 pr-9">
+                                        ≈ {unitCost} /{baseUnit}
+                                      </div>
+                                    )}
+                                  </div>
                                 </td>
 
-                                {/* Selling Price / Pack */}
+                                {/* Selling Price / Pack & Unit with Bidirectional Auto-Calculation */}
                                 <td className="py-3 px-3 text-right">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={item.selling_price_per_pack}
-                                    onChange={(e) => {
-                                      const sp = Math.max(0, parseFloat(e.target.value) || 0);
-                                      const med = medicines.find(
-                                        (m) => m.id === item.matched_medicine_id
-                                      );
-                                      const units = med?.units_per_pack || 1;
-                                      handleUpdateItem(item.id, {
-                                        selling_price_per_pack: sp,
-                                        selling_price_per_unit: Number((sp / units).toFixed(2)),
-                                      });
-                                    }}
-                                    className="h-8 text-xs font-mono font-bold text-teal-900 text-right w-24 ml-auto"
-                                  />
+                                  <div className="space-y-1">
+                                    {/* Pack Price Input */}
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={item.selling_price_per_pack || ''}
+                                        placeholder="Pack"
+                                        onChange={(e) => {
+                                          const spPack = Math.max(0, parseFloat(e.target.value) || 0);
+                                          handleUpdateItem(item.id, {
+                                            selling_price_per_pack: spPack,
+                                            selling_price_per_unit: Number(
+                                              (spPack / unitsPerPack).toFixed(2)
+                                            ),
+                                          });
+                                        }}
+                                        className="h-7 text-xs font-mono font-bold text-teal-900 text-right w-20 ml-auto"
+                                        title={`Selling price per ${packLabel}`}
+                                      />
+                                      <span className="text-[10px] text-slate-600 font-semibold w-8 text-left truncate">
+                                        /{packLabel}
+                                      </span>
+                                    </div>
+
+                                    {/* Unit Price Input (Bidirectional) */}
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={item.selling_price_per_unit || ''}
+                                        placeholder="Unit"
+                                        onChange={(e) => {
+                                          const spUnit = Math.max(0, parseFloat(e.target.value) || 0);
+                                          handleUpdateItem(item.id, {
+                                            selling_price_per_unit: spUnit,
+                                            selling_price_per_pack: Number(
+                                              (spUnit * unitsPerPack).toFixed(2)
+                                            ),
+                                          });
+                                        }}
+                                        className="h-7 text-xs font-mono text-teal-700 text-right w-20 ml-auto bg-teal-50/50 border-teal-200"
+                                        title={`Selling price per individual ${baseUnit} (auto-updates pack price)`}
+                                      />
+                                      <span className="text-[10px] text-teal-700 font-medium w-8 text-left truncate">
+                                        /{baseUnit}
+                                      </span>
+                                    </div>
+
+                                    {markupPercent !== null && (
+                                      <div className="text-[9px] font-semibold text-emerald-600 pr-9">
+                                        +{markupPercent}% margin
+                                      </div>
+                                    )}
+                                  </div>
                                 </td>
 
                                 {/* Action: Apply single */}
