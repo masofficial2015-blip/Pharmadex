@@ -23,31 +23,37 @@ export interface InventoryActionResponse {
 
 /**
  * Retrieve all stock batches sorted by FEFO (First-Expiring, First-Out).
+ * Also includes active medicines without batches as unstocked entries so they can be initialized.
  * Attaches alerts for near-expiry (< 4 months / 120 days) and expired items.
  */
 export async function getBatchesWithStatus(): Promise<BatchWithDetails[]> {
   await requireUser();
   const adminSupabase = createAdminClient();
 
-  // Query batches ordered by expiry_date ascending (FEFO)
-  const { data: rawBatches, error: batchError } = await adminSupabase
-    .from('batches')
-    .select(`
-      *,
-      medicine:medicines(*),
-      supplier:suppliers(*)
-    `)
-    .order('expiry_date', { ascending: true });
+  // Query batches ordered by expiry_date ascending (FEFO) and all active medicines
+  const [batchesRes, medicinesRes] = await Promise.all([
+    adminSupabase
+      .from('batches')
+      .select(`
+        *,
+        medicine:medicines(*),
+        supplier:suppliers(*)
+      `)
+      .order('expiry_date', { ascending: true }),
+    adminSupabase
+      .from('medicines')
+      .select('*')
+      .eq('is_active', true)
+      .order('name', { ascending: true }),
+  ]);
 
-  if (batchError || !rawBatches) {
-    console.error('Error fetching batches:', batchError);
-    return [];
-  }
+  const rawBatches = (batchesRes.data || []) as any[];
+  const allMedicines = (medicinesRes.data || []) as Medicine[];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (rawBatches as any[]).map((b) => {
+  const processedBatches: BatchWithDetails[] = rawBatches.map((b) => {
     const expiry = new Date(b.expiry_date);
     expiry.setHours(0, 0, 0, 0);
 
@@ -64,8 +70,46 @@ export async function getBatchesWithStatus(): Promise<BatchWithDetails[]> {
       is_expired: isExpired,
       is_near_expiry: isNearExpiry,
       days_to_expiry: daysToExpiry,
+      is_unstocked: false,
     };
   });
+
+  // Track medicine IDs that already have at least one batch
+  const medIdsWithBatches = new Set(rawBatches.map((b) => b.medicine_id));
+
+  // Synthesize unstocked batch entries for active medicines lacking batches
+  const unstockedEntries: BatchWithDetails[] = allMedicines
+    .filter((m) => !medIdsWithBatches.has(m.id))
+    .map((m) => {
+      return {
+        id: `unstocked-${m.id}`,
+        medicine_id: m.id,
+        supplier_id: null,
+        receipt_id: null,
+        batch_number: 'NO-BATCH',
+        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        cost_per_pack: 0,
+        cost_per_unit: 0,
+        selling_price_per_pack: 0,
+        selling_price_per_unit: 0,
+        packs_received: 0,
+        loose_units_received: 0,
+        initial_quantity_units: 0,
+        current_quantity_units: 0,
+        received_by: '',
+        created_at: m.created_at || new Date().toISOString(),
+        updated_at: m.updated_at || new Date().toISOString(),
+        medicine: m,
+        supplier: null,
+        receipt: null,
+        is_expired: false,
+        is_near_expiry: false,
+        days_to_expiry: 999,
+        is_unstocked: true,
+      };
+    });
+
+  return [...processedBatches, ...unstockedEntries];
 }
 
 /**
@@ -400,6 +444,83 @@ export async function updateBatchDetailsAction(
 ): Promise<{ success: boolean; error?: string }> {
   const auth = await requireUser();
   const adminSupabase = createAdminClient();
+
+  // If this is an unstocked medicine without an existing batch row, initialize one
+  if (params.batchId.startsWith('unstocked-')) {
+    const medicineId = params.batchId.replace('unstocked-', '');
+    const { data: medicine, error: medError } = await (adminSupabase.from('medicines') as any)
+      .select('*')
+      .eq('id', medicineId)
+      .single();
+
+    if (medError || !medicine) {
+      return { success: false, error: 'Medicine not found' };
+    }
+
+    const newQty = Math.max(0, Math.floor(params.currentQuantityUnits));
+    const batchNumber = params.batchNumber?.trim() || 'INITIAL-STOCK';
+    const expiryDate =
+      params.expiryDate?.trim() ||
+      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const { data: newBatch, error: insertError } = await (adminSupabase.from('batches') as any)
+      .insert({
+        medicine_id: medicineId,
+        batch_number: batchNumber,
+        expiry_date: expiryDate,
+        cost_per_pack: Math.max(0, params.costPerPack),
+        selling_price_per_pack: Math.max(0, params.sellingPricePerPack),
+        selling_price_per_unit: Math.max(0, params.sellingPricePerUnit),
+        initial_quantity_units: newQty,
+        current_quantity_units: newQty,
+        received_by: auth.userId,
+      })
+      .select()
+      .single();
+
+    if (insertError || !newBatch) {
+      return { success: false, error: insertError?.message || 'Failed to create initial batch' };
+    }
+
+    // Log initial audit stock movement if quantity was set
+    if (newQty > 0) {
+      await (adminSupabase.from('stock_movements') as any).insert({
+        batch_id: newBatch.id,
+        medicine_id: medicineId,
+        movement_type: 'RECEIVE',
+        quantity_units: newQty,
+        previous_quantity_units: 0,
+        new_quantity_units: newQty,
+        reference_type: 'ADJUSTMENT',
+        performed_by: auth.userId,
+        notes: params.reason?.trim() || `Initial stock setup (${newQty} units)`,
+      });
+    }
+
+    await recordAuditLog({
+      tableName: 'batches',
+      recordId: newBatch.id,
+      action: 'INSERT',
+      newData: {
+        medicine_name: medicine.name,
+        current_quantity_units: newQty,
+        cost_per_pack: params.costPerPack,
+        selling_price_per_pack: params.sellingPricePerPack,
+        selling_price_per_unit: params.sellingPricePerUnit,
+        batch_number: batchNumber,
+        reason: params.reason || 'Initial stock creation',
+      },
+      performedBy: auth.userId,
+    });
+
+    revalidatePath('/inventory/batches');
+    revalidatePath('/inventory/medicines');
+    revalidatePath('/inventory/movements');
+    revalidatePath('/pos');
+    revalidatePath('/dashboard');
+
+    return { success: true };
+  }
 
   // 1. Fetch current batch data
   const { data: currentBatch, error: fetchError } = await (adminSupabase.from('batches') as any)

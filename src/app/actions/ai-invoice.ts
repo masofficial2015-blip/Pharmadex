@@ -188,7 +188,82 @@ function extractAndParseJson(text: string): any {
     } catch {}
   }
 
+  // 5. Fallback: Parse structured bullet points if model emitted reasoning or text list
+  const bulletParsed = parseBulletedInvoiceText(text);
+  if (bulletParsed && bulletParsed.items && bulletParsed.items.length > 0) {
+    return bulletParsed;
+  }
+
   throw new Error(`Invalid JSON format: ${text.substring(0, 100)}`);
+}
+
+/**
+ * Fallback parser that extracts invoice header and line items from formatted text or reasoning bullets.
+ */
+function parseBulletedInvoiceText(text: string): any {
+  if (!text || typeof text !== 'string') return null;
+
+  const result: {
+    supplier_name: string;
+    supplier_phone: string;
+    invoice_number: string;
+    invoice_date: string;
+    items: any[];
+  } = {
+    supplier_name: '',
+    supplier_phone: '',
+    invoice_number: '',
+    invoice_date: '',
+    items: [],
+  };
+
+  const supplierMatch = text.match(/(?:Supplier|Vendor)(?:\s*Name)?\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+  if (supplierMatch) result.supplier_name = supplierMatch[1].replace(/[*_`]/g, '').trim();
+
+  const phoneMatch = text.match(/(?:Supplier|Vendor)?\s*Phone\s*[:\-]\s*"?([0-9+\-\s()]{7,})"?/i);
+  if (phoneMatch) result.supplier_phone = phoneMatch[1].replace(/[*_`]/g, '').trim();
+
+  const invNumMatch = text.match(/Invoice\s*(?:Number|#|No\.?)\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+  if (invNumMatch) result.invoice_number = invNumMatch[1].replace(/[*_`]/g, '').trim();
+
+  const invDateMatch = text.match(/Invoice\s*Date\s*:[^\r\n]*?(\d{4}-\d{2}-\d{2})/i);
+  if (invDateMatch) {
+    result.invoice_date = invDateMatch[1].trim();
+  } else {
+    const rawDateMatch = text.match(/Invoice\s*Date\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+    if (rawDateMatch) result.invoice_date = rawDateMatch[1].replace(/[*_`]/g, '').trim();
+  }
+
+  // Split into Item sections by "Item 1:", "* Item 1:", "Line 1:", etc.
+  const itemSections = text.split(/(?:^|\n)\s*(?:[*+-]\s*)?(?:Item\s*(?:#|\d+)|Line\s*(?:#|\d+))\s*[:\-]/i);
+  if (itemSections.length > 1) {
+    for (let i = 1; i < itemSections.length; i++) {
+      const sec = itemSections[i];
+      const descMatch = sec.match(/(?:Description|Product|Medicine|Name)\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+      const codeMatch = sec.match(/Code\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+      const batchMatch = sec.match(/(?:Batch\s*(?:#|No|Number)?|Lot\s*(?:#|No|Number)?)\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+      const expiryMatch = sec.match(/(?:Expr?\.?\s*Date|Expiry(?:\s*Date)?)\s*:[^\r\n]*?(\d{4}-\d{2}-\d{2})/i);
+      const qtyMatch = sec.match(/(?:Quantity|Qty)\s*[:\-]\s*"?(\d+)"?/i);
+      const uomMatch = sec.match(/(?:UOM|Unit\s+of\s+Measure|Unit|Packaging)\s*[:\-]\s*"?([^"\r\n]+)"?/i);
+      const unitPriceMatch = sec.match(/(?:Unit\s*Price|Cost|Price)\s*[:\-]\s*"?([\d,.]+)"?/i);
+      const totalPriceMatch = sec.match(/(?:Total\s*Price|Total|Line\s*Total)\s*[:\-]\s*"?([\d,.]+)"?/i);
+
+      if (descMatch || batchMatch) {
+        result.items.push({
+          raw_description: descMatch ? descMatch[1].replace(/[*_`]/g, '').trim() : 'Unknown Item',
+          code: codeMatch ? codeMatch[1].replace(/[*_`]/g, '').trim() : '',
+          batch_number: batchMatch ? batchMatch[1].replace(/[*_`]/g, '').trim() : '',
+          expiry_date: expiryMatch ? expiryMatch[1].trim() : '',
+          quantity: qtyMatch ? parseInt(qtyMatch[1], 10) : 1,
+          uom: uomMatch ? uomMatch[1].replace(/[*_`]/g, '').trim() : '',
+          unit_price: unitPriceMatch ? parseFloat(unitPriceMatch[1].replace(/,/g, '')) : 0,
+          total_price: totalPriceMatch ? parseFloat(totalPriceMatch[1].replace(/,/g, '')) : 0,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -280,55 +355,95 @@ Return ONLY valid JSON with this exact structure:
       let modelSucceeded = false;
 
       for (const apiVer of apiVersions) {
-        try {
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [
-                  {
-                    parts: [
-                      { text: prompt },
-                      {
-                        inlineData: {
-                          mimeType: mimeType,
-                          data: base64Data,
-                        },
-                      },
-                    ],
-                  },
-                ],
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.1,
-                  maxOutputTokens: 8192,
-                },
-              }),
-            }
-          );
+        // Try with thinking suppressed first, then fallback to basic generationConfig if API rejects thinkingConfig
+        const configVariants = [
+          {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+          {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 8192,
+          },
+        ];
 
-          if (response.ok) {
-            apiResult = await response.json();
-            candidateText = apiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (candidateText && candidateText.trim()) {
-              successfulModel = `${model} (${apiVer})`;
-              modelSucceeded = true;
-              break;
+        for (const genConfig of configVariants) {
+          try {
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        { text: prompt },
+                        {
+                          inlineData: {
+                            mimeType: mimeType,
+                            data: base64Data,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                  generationConfig: genConfig,
+                }),
+              }
+            );
+
+            if (response.ok) {
+              apiResult = await response.json();
+              const parts: any[] = apiResult?.candidates?.[0]?.content?.parts || [];
+
+              // Prefer parts that are NOT marked as 'thought' (Gemini 2.0/2.5 Thinking models)
+              const nonThoughtParts = parts.filter(
+                (p: any) => !p.thought && typeof p.text === 'string' && p.text.trim()
+              );
+              let extracted = '';
+
+              if (nonThoughtParts.length > 0) {
+                extracted = nonThoughtParts.map((p: any) => p.text).join('\n');
+              } else {
+                // If all parts were thinking or thought flag was absent, check if any part contains '{'
+                const partWithJson = parts.find((p: any) => p.text && p.text.includes('{'));
+                if (partWithJson) {
+                  extracted = partWithJson.text;
+                } else {
+                  extracted = parts.map((p: any) => p.text || '').join('\n');
+                }
+              }
+
+              if (extracted && extracted.trim()) {
+                candidateText = extracted;
+                successfulModel = `${model} (${apiVer})`;
+                modelSucceeded = true;
+                break;
+              }
+            } else {
+              const errText = await response.text();
+              let parsedErrMsg = errText;
+              try {
+                const errObj = JSON.parse(errText);
+                parsedErrMsg = errObj?.error?.message || errText;
+              } catch {}
+              attemptErrors.push(`${model} [${apiVer} HTTP ${response.status}]: ${parsedErrMsg}`);
+              console.warn(`[Gemini Invoice Scan] Model ${model} via ${apiVer} failed:`, parsedErrMsg);
+              // If it's a 400 bad request, try the next configVariant without thinkingConfig
+              if (response.status !== 400) {
+                break;
+              }
             }
-          } else {
-            const errText = await response.text();
-            let parsedErrMsg = errText;
-            try {
-              const errObj = JSON.parse(errText);
-              parsedErrMsg = errObj?.error?.message || errText;
-            } catch {}
-            attemptErrors.push(`${model} [${apiVer} HTTP ${response.status}]: ${parsedErrMsg}`);
-            console.warn(`[Gemini Invoice Scan] Model ${model} via ${apiVer} failed:`, parsedErrMsg);
+          } catch (err: any) {
+            attemptErrors.push(`${model} [${apiVer}]: ${err.message || 'Network error'}`);
+            break;
           }
-        } catch (err: any) {
-          attemptErrors.push(`${model} [${apiVer}]: ${err.message || 'Network error'}`);
+        }
+
+        if (modelSucceeded) {
+          break;
         }
       }
 

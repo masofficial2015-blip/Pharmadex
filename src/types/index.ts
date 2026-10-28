@@ -42,6 +42,7 @@ export interface BatchWithDetails extends Batch {
   is_expired: boolean;
   is_near_expiry: boolean; // < 4 months (120 days)
   days_to_expiry: number;
+  is_unstocked?: boolean;
 }
 
 export interface StockMovementWithDetails extends StockMovement {

@@ -31,7 +31,7 @@ const PAGE_SIZE = 25;
 export function BatchTable({ batches }: BatchTableProps) {
   const [batchesState, setBatchesState] = useState<BatchWithDetails[]>(batches);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState<'ALL' | 'NEAR_EXPIRY' | 'EXPIRED' | 'AVAILABLE'>('ALL');
+  const [filterTab, setFilterTab] = useState<'ALL' | 'NEAR_EXPIRY' | 'EXPIRED' | 'AVAILABLE' | 'ZERO_STOCK'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Batch Edit State (Stock count, prices, batch number, expiry)
@@ -169,6 +169,7 @@ export function BatchTable({ batches }: BatchTableProps) {
       if (filterTab === 'NEAR_EXPIRY') return b.is_near_expiry;
       if (filterTab === 'EXPIRED') return b.is_expired;
       if (filterTab === 'AVAILABLE') return b.current_quantity_units > 0 && !b.is_expired;
+      if (filterTab === 'ZERO_STOCK') return b.current_quantity_units === 0 || b.is_unstocked;
 
       return true;
     });
@@ -182,6 +183,7 @@ export function BatchTable({ batches }: BatchTableProps) {
 
   const nearExpiryCount = batchesState.filter((b) => b.is_near_expiry).length;
   const expiredCount = batchesState.filter((b) => b.is_expired).length;
+  const zeroStockCount = batchesState.filter((b) => b.current_quantity_units === 0 || b.is_unstocked).length;
 
   return (
     <div className="space-y-6">
@@ -291,6 +293,17 @@ export function BatchTable({ batches }: BatchTableProps) {
           >
             Available Stock
           </button>
+          <button
+            onClick={() => setFilterTab('ZERO_STOCK')}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+              filterTab === 'ZERO_STOCK'
+                ? 'bg-purple-700 text-white'
+                : 'bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100/60'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Zero Stock ({zeroStockCount})
+          </button>
         </div>
       </div>
 
@@ -346,27 +359,36 @@ export function BatchTable({ batches }: BatchTableProps) {
                             #{globalIdx + 1}
                           </span>
                           <div>
-                            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{b.expiry_date}</span>
-                            </div>
-                            <div className="mt-0.5">
-                              {b.is_expired ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700">
-                                  <ShieldAlert className="w-3 h-3" />
-                                  Expired {Math.abs(b.days_to_expiry)}d ago
-                                </span>
-                              ) : b.is_near_expiry ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
-                                  <Clock className="w-3 h-3" />
-                                  Expiring in {b.days_to_expiry} days
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-emerald-700 font-medium">
-                                  {b.days_to_expiry} days remaining
-                                </span>
-                              )}
-                            </div>
+                            {b.is_unstocked ? (
+                              <div className="font-semibold text-slate-500 flex items-center gap-1.5 text-xs">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                <span>No batch set</span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{b.expiry_date}</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  {b.is_expired ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700">
+                                      <ShieldAlert className="w-3 h-3" />
+                                      Expired {Math.abs(b.days_to_expiry)}d ago
+                                    </span>
+                                  ) : b.is_near_expiry ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
+                                      <Clock className="w-3 h-3" />
+                                      Expiring in {b.days_to_expiry} days
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-emerald-700 font-medium">
+                                      {b.days_to_expiry} days remaining
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -391,13 +413,17 @@ export function BatchTable({ batches }: BatchTableProps) {
 
                       {/* Batch Number */}
                       <td className="py-4 px-4 font-mono text-xs font-semibold text-slate-800">
-                        {b.batch_number}
+                        {b.is_unstocked ? (
+                          <span className="text-slate-400 italic">None</span>
+                        ) : (
+                          b.batch_number
+                        )}
                       </td>
 
                       {/* Current Stock */}
                       <td className="py-4 px-4">
-                        <div className="font-bold text-slate-900 text-sm">
-                          {formatStockBreakdown(b.current_quantity_units, b.medicine)}
+                        <div className={`font-bold text-sm ${b.is_unstocked || b.current_quantity_units === 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                          {b.is_unstocked ? '0 Packs (Out of stock)' : formatStockBreakdown(b.current_quantity_units, b.medicine)}
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5">
                           ({b.current_quantity_units.toLocaleString()} {baseUnit}{b.current_quantity_units !== 1 ? 's' : ''})
@@ -428,7 +454,11 @@ export function BatchTable({ batches }: BatchTableProps) {
 
                       {/* Status */}
                       <td className="py-4 px-4 text-center">
-                        {b.is_expired ? (
+                        {b.is_unstocked ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            Zero Stock
+                          </span>
+                        ) : b.is_expired ? (
                           <Badge variant="danger">Blocked (Expired)</Badge>
                         ) : b.is_near_expiry ? (
                           <Badge variant="warning">Near Expiry</Badge>
@@ -440,14 +470,18 @@ export function BatchTable({ batches }: BatchTableProps) {
                       {/* Actions */}
                       <td className="py-4 px-4 text-right">
                         <Button
-                          variant="outline"
+                          variant={b.is_unstocked ? 'primary' : 'outline'}
                           size="sm"
                           onClick={() => handleStartEdit(b)}
-                          className="h-8 px-2.5 text-xs font-semibold text-teal-800 hover:text-teal-900 border-teal-200 hover:bg-teal-50 gap-1.5 shadow-2xs"
-                          title="Edit Batch Stock & Pricing"
+                          className={`h-8 px-2.5 text-xs font-semibold gap-1.5 shadow-2xs ${
+                            b.is_unstocked
+                              ? 'bg-teal-700 hover:bg-teal-800 text-white'
+                              : 'text-teal-800 hover:text-teal-900 border-teal-200 hover:bg-teal-50'
+                          }`}
+                          title={b.is_unstocked ? "Initialize Stock & Pricing" : "Edit Batch Stock & Pricing"}
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                          <span>Edit</span>
+                          <span>{b.is_unstocked ? '+ Set Initial Stock' : 'Edit'}</span>
                         </Button>
                       </td>
                     </tr>
@@ -512,7 +546,7 @@ export function BatchTable({ batches }: BatchTableProps) {
               <div>
                 <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
                   <Edit2 className="w-4 h-4 text-teal-700" />
-                  Edit Batch Stock & Pricing
+                  {editingBatch.is_unstocked ? 'Set Initial Stock & Pricing' : 'Edit Batch Stock & Pricing'}
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
                   <span className="font-semibold text-slate-800">{editingBatch.medicine?.name}</span>{' '}
